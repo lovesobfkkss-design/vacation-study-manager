@@ -109,6 +109,19 @@ function toggleRole() {
   const role = document.getElementById("suRole").value;
   document.getElementById("gradeWrap").style.display = (role === "admin" ? "none" : "block");
   document.getElementById("parentEmailWrap").style.display = (role === "admin" ? "none" : "block");
+  // 학원 관련 필드 토글
+  document.getElementById("academyNameWrap").style.display = (role === "admin" ? "block" : "none");
+  document.getElementById("academyCodeWrap").style.display = (role === "admin" ? "none" : "block");
+}
+
+// 학원 코드 생성 함수 (6자리 영숫자)
+function generateAcademyCode() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
 }
 
 async function signup() {
@@ -120,29 +133,81 @@ async function signup() {
   const role = document.getElementById("suRole").value;
   const grade = document.getElementById("suGrade").value;
   const parentEmail = document.getElementById("suParentEmail").value.trim();
+  const academyName = document.getElementById("suAcademyName").value.trim();
+  const academyCode = document.getElementById("suAcademyCode").value.trim().toUpperCase();
   const err = document.getElementById("suErr");
   const ok = document.getElementById("suOk");
   err.textContent = "";
   ok.textContent = "";
-  
+
   if (!name || !email) { err.textContent = "이름/이메일을 입력하세요."; return; }
   if (role === "student" && !nickname) { err.textContent = "닉네임을 입력하세요."; return; }
   if (pw.length < 6) { err.textContent = "비밀번호는 6자 이상."; return; }
   if (pw !== pw2) { err.textContent = "비밀번호가 일치하지 않습니다."; return; }
   if (role === "student" && !grade) { err.textContent = "학년을 선택하세요."; return; }
-  
+
+  // 학원 관련 검증
+  if (role === "admin" && !academyName) { err.textContent = "학원 이름을 입력하세요."; return; }
+  if (role === "student" && !academyCode) { err.textContent = "학원 코드를 입력하세요."; return; }
+
   try {
+    let userAcademyId = "";
+    let userAcademyName = "";
+
+    if (role === "admin") {
+      // 관리자: 새 학원 생성 + 코드 발급
+      let newCode = generateAcademyCode();
+      // 코드 중복 체크
+      let codeExists = true;
+      while (codeExists) {
+        const codeCheck = await getDocs(query(collection(db, "academies"), where("code", "==", newCode)));
+        if (codeCheck.empty) {
+          codeExists = false;
+        } else {
+          newCode = generateAcademyCode();
+        }
+      }
+
+      // 학원 생성
+      const academyRef = await addDoc(collection(db, "academies"), {
+        name: academyName,
+        code: newCode,
+        createdAt: new Date()
+      });
+      userAcademyId = academyRef.id;
+      userAcademyName = academyName;
+
+      // 가입 완료 메시지에 코드 포함
+      ok.textContent = `가입 완료! 학원 코드: ${newCode}`;
+    } else {
+      // 학생: 학원 코드 검증
+      const academyQuery = await getDocs(query(collection(db, "academies"), where("code", "==", academyCode)));
+      if (academyQuery.empty) {
+        err.textContent = "유효하지 않은 학원 코드입니다.";
+        return;
+      }
+      const academyDoc = academyQuery.docs[0];
+      userAcademyId = academyDoc.id;
+      userAcademyName = academyDoc.data().name;
+    }
+
     const cred = await createUserWithEmailAndPassword(auth, email, pw);
     await setDoc(doc(db, "users", cred.user.uid), {
-      name, 
+      name,
       nickname: nickname || name,
-      email, 
-      role, 
+      email,
+      role,
       grade: (role === "admin" ? "" : grade),
       parentEmail: (role === "student" ? parentEmail : ""),
+      academyId: userAcademyId,
+      academyName: userAcademyName,
       createdAt: new Date()
     });
-    ok.textContent = "가입 완료! 로그인해 주세요.";
+
+    if (role === "student") {
+      ok.textContent = `가입 완료! (${userAcademyName}) 로그인해 주세요.`;
+    }
+
     await signOut(auth);
     setTimeout(() => {
       showLogin();
@@ -153,7 +218,9 @@ async function signup() {
       document.getElementById("suPw2").value = "";
       document.getElementById("suGrade").value = "";
       document.getElementById("suParentEmail").value = "";
-    }, 1500);
+      document.getElementById("suAcademyName").value = "";
+      document.getElementById("suAcademyCode").value = "";
+    }, 3000);
   } catch (e) {
     err.textContent = "회원가입 오류: " + (e.message || e.code || "알 수 없는 오류");
   }
@@ -359,22 +426,53 @@ function loadTasks(subj) {
       if (t.__deleted) return;
       const row = document.createElement("div");
       row.className = "task-row";
+
+      // 점검 상태에 따른 버튼/상태 표시
+      const checkStatus = t.checkStatus || "none";
+      let checkBtnHtml = "";
+
+      if (t.completed) {
+        if (checkStatus === "none") {
+          checkBtnHtml = `<button class="btn btn-check-request">점검 요청</button>`;
+        } else if (checkStatus === "requested") {
+          checkBtnHtml = `<span class="check-status requested">점검 대기중</span>`;
+        } else if (checkStatus === "testAssigned") {
+          checkBtnHtml = `<span class="check-status testing">테스트 응시중</span>`;
+        } else if (checkStatus === "completed") {
+          checkBtnHtml = `<span class="check-status completed">점검완료 (${t.testScore}점)</span>`;
+        }
+      }
+
       row.innerHTML = `
         <div class="task-left">
           <input type="checkbox" ${t.completed ? "checked" : ""}>
           ${subj === "모든 과목" ? `<span class="badge">${t.subject}</span>` : ""}
           <span class="task-title">${t.title}</span>
+          ${checkBtnHtml}
         </div>
-        <button class="btn btn-outline">삭제</button>`;
+        <button class="btn btn-outline btn-delete">삭제</button>`;
+
       row.querySelector("input").onchange = async () => {
         await updateDoc(doc(tasksCol(), docu.id), { completed: row.querySelector("input").checked });
         await recalcProgressAndSave();
       };
-      row.querySelector("button").onclick = async () => {
+      row.querySelector(".btn-delete").onclick = async () => {
         if (!confirm("이 항목을 삭제하시겠습니까?")) return;
         await deleteDoc(doc(tasksCol(), docu.id));
         await recalcProgressAndSave();
       };
+
+      // 점검 요청 버튼 이벤트
+      const checkRequestBtn = row.querySelector(".btn-check-request");
+      if (checkRequestBtn) {
+        checkRequestBtn.onclick = async () => {
+          await updateDoc(doc(tasksCol(), docu.id), {
+            checkStatus: "requested",
+            requestedAt: new Date()
+          });
+        };
+      }
+
       list.appendChild(row);
     });
   });
@@ -553,14 +651,31 @@ async function renderAggregate(days) {
 }
 
 // 랭킹 시스템
+let currentRankingType = "academy"; // "academy" 또는 "national"
+
+// 랭킹 탭 이벤트 리스너 설정
+function setupRankingTabs() {
+  document.querySelectorAll(".ranking-tab").forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll(".ranking-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      currentRankingType = tab.dataset.ranking;
+      renderRanking();
+    };
+  });
+}
+
 async function renderRanking() {
   if (!myData || !myData.grade) {
     document.getElementById("rankingList").innerHTML = '<div class="ghost">학년 정보가 없습니다.</div>';
     return;
   }
-  
+
   document.getElementById("myGradeLabel").textContent = myData.grade;
-  
+
+  // 랭킹 탭 설정
+  setupRankingTabs();
+
   // 주간 데이터 수집
   const today = new Date();
   const dayOfWeek = today.getDay();
@@ -569,52 +684,70 @@ async function renderRanking() {
   monday.setDate(today.getDate() + mondayOffset);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
-  
+
   const weekKeys = [];
   for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
     weekKeys.push(d.toLocaleDateString('en-CA', { timeZone:'Asia/Seoul' }));
   }
-  
-  // 같은 학년 학생들 가져오기
-  const usersSnap = await getDocs(query(collection(db, "users"), where("grade", "==", myData.grade)));
+
+  // 학생 쿼리: 학원 랭킹 vs 전국 랭킹
+  let usersSnap;
+  if (currentRankingType === "academy") {
+    // 우리 학원 + 같은 학년 학생들
+    usersSnap = await getDocs(query(
+      collection(db, "users"),
+      where("grade", "==", myData.grade),
+      where("academyId", "==", myData.academyId || "")
+    ));
+    document.getElementById("rankingSubtitle").textContent = `${myData.academyName || "우리 학원"} | 점수 = 공부시간(분) + 진행률 × 10`;
+  } else {
+    // 전국 같은 학년 학생들
+    usersSnap = await getDocs(query(
+      collection(db, "users"),
+      where("grade", "==", myData.grade)
+    ));
+    document.getElementById("rankingSubtitle").textContent = "전국 | 점수 = 공부시간(분) + 진행률 × 10";
+  }
+
   const rankings = [];
-  
+
   for (const userDoc of usersSnap.docs) {
     const userData = userDoc.data();
     if (userData.role !== "student") continue;
-    
+
     let totalTime = 0;
     let totalProgress = 0;
     let count = 0;
     let studyDays = 0;
-    
+
     for (const key of weekKeys) {
       const dailySnap = await getDoc(dailyRef(userDoc.id, key));
       if (dailySnap.exists()) {
         const d = dailySnap.data();
         const sec = Number(d.timerSeconds) || 0;
         const prog = Number(d.progress) || 0;
-        
+
         if (sec > 0) studyDays++;
         totalTime += sec;
         totalProgress += prog;
         count++;
       }
     }
-    
+
     const avgProgress = count > 0 ? Math.round(totalProgress / count) : 0;
     const minutes = Math.floor(totalTime / 60);
     const score = minutes + (avgProgress * 10);
-    
+
     // 배지 계산
     const badges = [];
     if (studyDays >= 7) badges.push("🔥 7일 연속");
     if (totalTime >= 36000) badges.push("⏰ 10시간 달성");
     if (avgProgress >= 95) badges.push("💯 완벽 완수");
-    
+
     rankings.push({
       uid: userDoc.id,
       name: userData.nickname || userData.name,
+      academyName: userData.academyName || "",
       score,
       avgProgress,
       totalTime,
@@ -622,20 +755,21 @@ async function renderRanking() {
       badges
     });
   }
-  
+
   rankings.sort((a, b) => b.score - a.score);
-  
+
   // 1등에게 챔피언 배지 추가
-  if (rankings.length > 0 && !rankings[0].badges.includes("👑 주간 챔피언")) {
-    rankings[0].badges.push("👑 주간 챔피언");
+  const championBadge = currentRankingType === "academy" ? "👑 학원 챔피언" : "👑 전국 챔피언";
+  if (rankings.length > 0 && !rankings[0].badges.includes(championBadge)) {
+    rankings[0].badges.push(championBadge);
   }
-  
+
   // 내 순위 찾기
   const myRank = rankings.findIndex(r => r.uid === me.uid) + 1;
   const myInfo = rankings.find(r => r.uid === me.uid);
-  
+
   document.getElementById("myRank").textContent = myRank > 0 ? `${myRank}위` : "-";
-  
+
   const myBadgesDiv = document.getElementById("myBadges");
   myBadgesDiv.innerHTML = "";
   if (myInfo && myInfo.badges.length > 0) {
@@ -648,30 +782,38 @@ async function renderRanking() {
   } else {
     myBadgesDiv.innerHTML = '<span class="ghost">아직 획득한 배지가 없습니다</span>';
   }
-  
+
   // 랭킹 리스트 렌더링
   const list = document.getElementById("rankingList");
   list.innerHTML = "";
-  
+
   if (rankings.length === 0) {
-    list.innerHTML = '<div class="ghost">같은 학년의 학생이 없습니다.</div>';
+    const msg = currentRankingType === "academy"
+      ? "우리 학원에 같은 학년 학생이 없습니다."
+      : "같은 학년의 학생이 없습니다.";
+    list.innerHTML = `<div class="ghost">${msg}</div>`;
     return;
   }
-  
+
   rankings.forEach((rank, index) => {
     const item = document.createElement("div");
     item.className = "rank-item" + (index === 0 ? " mvp" : "");
-    
+
     const hours = Math.floor(rank.totalTime / 3600);
     const mins = Math.floor((rank.totalTime % 3600) / 60);
-    
+
+    // 전국 랭킹에서는 학원명 표시
+    const academyLabel = currentRankingType === "national" && rank.academyName
+      ? `<span class="badge" style="margin-left:6px; font-size:10px;">${rank.academyName}</span>`
+      : "";
+
     item.innerHTML = `
       <div class="rank-num">${index + 1}</div>
       <div class="rank-info">
-        <div class="rank-name">${rank.name} ${rank.uid === me.uid ? "(나)" : ""}</div>
+        <div class="rank-name">${rank.name} ${rank.uid === me.uid ? "(나)" : ""} ${academyLabel}</div>
         <div class="kicker">
-          공부시간: ${hours}시간 ${mins}분 | 
-          평균 진행률: ${rank.avgProgress}% | 
+          공부시간: ${hours}시간 ${mins}분 |
+          평균 진행률: ${rank.avgProgress}% |
           학습일수: ${rank.studyDays}일
         </div>
         <div class="rank-badges">
@@ -680,7 +822,7 @@ async function renderRanking() {
       </div>
       <div class="rank-score">${rank.score}점</div>
     `;
-    
+
     list.appendChild(item);
   });
 }
@@ -691,7 +833,18 @@ async function renderAdmin() {
   document.getElementById("signupView").style.display = "none";
   document.getElementById("studentView").style.display = "none";
   document.getElementById("adminView").style.display = "block";
-  
+
+  // 학원 정보 표시
+  document.getElementById("adminAcademyName").textContent = myData.academyName || "학원명 없음";
+
+  // 학원 코드 가져오기
+  if (myData.academyId) {
+    const academyDoc = await getDoc(doc(db, "academies", myData.academyId));
+    if (academyDoc.exists()) {
+      document.getElementById("adminAcademyCode").textContent = academyDoc.data().code;
+    }
+  }
+
   await switchAdminTab("students");
 }
 
@@ -718,24 +871,32 @@ async function switchAdminTab(tabName) {
 async function renderStudentList() {
   const list = document.getElementById("adminList");
   list.innerHTML = "";
-  
-  const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "student")));
-  
+
+  // 점검 요청 목록 로드
+  await loadCheckRequests();
+
+  // 자기 학원 학생만 표시
+  const usersSnap = await getDocs(query(
+    collection(db, "users"),
+    where("role", "==", "student"),
+    where("academyId", "==", myData.academyId || "")
+  ));
+
   if (usersSnap.empty) {
     list.innerHTML = '<div class="ghost">등록된 학생이 없습니다.</div>';
     return;
   }
-  
+
   for (const userDoc of usersSnap.docs) {
     const userData = userDoc.data();
     const dailySnap = await getDoc(dailyRef(userDoc.id, todayKey));
     const dailyData = dailySnap.exists() ? dailySnap.data() : {};
-    
+
     const progress = Number(dailyData.progress) || 0;
     const seconds = Number(dailyData.timerSeconds) || 0;
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
-    
+
     const card = document.createElement("div");
     card.className = "student-card";
     card.innerHTML = `
@@ -750,15 +911,20 @@ async function renderStudentList() {
         <button class="btn btn-outline">상세보기</button>
       </div>
     `;
-    
+
     card.querySelector("button").onclick = () => openStudentModal(userDoc.id, userData);
     list.appendChild(card);
   }
 }
 
 async function renderCompareView() {
-  const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "student")));
-  
+  // 자기 학원 학생만 표시
+  const usersSnap = await getDocs(query(
+    collection(db, "users"),
+    where("role", "==", "student"),
+    where("academyId", "==", myData.academyId || "")
+  ));
+
   if (usersSnap.empty) {
     document.getElementById("compareStats").innerHTML = '<div class="ghost">학생 데이터가 없습니다.</div>';
     return;
@@ -847,14 +1013,19 @@ async function renderCompareView() {
 async function renderWarningView() {
   const list = document.getElementById("warningList");
   list.innerHTML = "";
-  
-  const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "student")));
-  
+
+  // 자기 학원 학생만 표시
+  const usersSnap = await getDocs(query(
+    collection(db, "users"),
+    where("role", "==", "student"),
+    where("academyId", "==", myData.academyId || "")
+  ));
+
   if (usersSnap.empty) {
     list.innerHTML = '<div class="ghost">학생 데이터가 없습니다.</div>';
     return;
   }
-  
+
   const warnings = [];
   
   for (const userDoc of usersSnap.docs) {
@@ -2240,7 +2411,7 @@ async function loadCounselingHistory(uid) {
   snap.forEach(docu => {
     const data = docu.data();
     const date = new Date(data.counseledAt?.seconds ? data.counseledAt.seconds * 1000 : data.counseledAt);
-    
+
     const item = document.createElement("div");
     item.className = "memo-item";
     item.innerHTML = `
@@ -2249,4 +2420,168 @@ async function loadCounselingHistory(uid) {
     `;
     historyDiv.appendChild(item);
   });
+}
+
+// 점검 요청 관련 함수들
+let unsubCheckRequests = null;
+
+async function loadCheckRequests() {
+  const listDiv = document.getElementById("checkRequestList");
+  const countSpan = document.getElementById("checkRequestCount");
+  const alertSpan = document.getElementById("checkRequestAlert");
+
+  if (unsubCheckRequests) {
+    unsubCheckRequests();
+    unsubCheckRequests = null;
+  }
+
+  // 자기 학원 학생의 점검 요청만 가져오기
+  const usersSnap = await getDocs(query(
+    collection(db, "users"),
+    where("role", "==", "student"),
+    where("academyId", "==", myData.academyId || "")
+  ));
+
+  const allRequests = [];
+
+  for (const userDoc of usersSnap.docs) {
+    const userData = userDoc.data();
+    const tasksQ = query(tasksCol(userDoc.id, todayKey));
+    const tasksSnap = await getDocs(tasksQ);
+
+    tasksSnap.forEach(taskDoc => {
+      const task = taskDoc.data();
+      if (task.checkStatus === "requested" || task.checkStatus === "testAssigned") {
+        allRequests.push({
+          studentId: userDoc.id,
+          studentName: userData.name,
+          studentGrade: userData.grade,
+          taskId: taskDoc.id,
+          task: task
+        });
+      }
+    });
+  }
+
+  // 점검 요청 개수 업데이트
+  const requestedCount = allRequests.filter(r => r.task.checkStatus === "requested").length;
+  countSpan.textContent = requestedCount;
+
+  // 점검 요청이 있으면 깜빡임 효과 추가
+  if (requestedCount > 0) {
+    alertSpan.classList.add("blinking");
+  } else {
+    alertSpan.classList.remove("blinking");
+  }
+
+  // 목록 렌더링
+  listDiv.innerHTML = "";
+
+  if (allRequests.length === 0) {
+    listDiv.innerHTML = '<div class="ghost">점검 요청이 없습니다.</div>';
+    return;
+  }
+
+  allRequests.forEach(req => {
+    const card = document.createElement("div");
+    card.className = "check-request-card";
+
+    const statusText = req.task.checkStatus === "requested" ? "점검 대기" : "테스트 응시중";
+    const statusClass = req.task.checkStatus === "requested" ? "waiting" : "testing";
+
+    let actionBtnHtml = "";
+    if (req.task.checkStatus === "requested") {
+      actionBtnHtml = `<button class="btn btn-assign-test">테스트 배부</button>`;
+    } else if (req.task.checkStatus === "testAssigned") {
+      actionBtnHtml = `<button class="btn btn-grade-test">점수 기입</button>`;
+    }
+
+    card.innerHTML = `
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <div>
+          <strong>${req.studentName}</strong>
+          <span class="badge" style="margin-left:8px;">${req.studentGrade || "-"}</span>
+          <span class="check-status-badge ${statusClass}">${statusText}</span>
+          <div class="kicker" style="margin-top:6px;">
+            <span class="badge">${req.task.subject}</span> ${req.task.title}
+          </div>
+        </div>
+        <div class="row" style="gap:8px;">
+          ${actionBtnHtml}
+        </div>
+      </div>
+    `;
+
+    // 테스트 배부 버튼
+    const assignBtn = card.querySelector(".btn-assign-test");
+    if (assignBtn) {
+      assignBtn.onclick = async () => {
+        if (!confirm(`${req.studentName}에게 "${req.task.title}" 테스트를 배부하시겠습니까?`)) return;
+        await updateDoc(doc(tasksCol(req.studentId, todayKey), req.taskId), {
+          checkStatus: "testAssigned",
+          testAssignedAt: new Date(),
+          testAssignedBy: me.uid
+        });
+        await loadCheckRequests();
+      };
+    }
+
+    // 점수 기입 버튼
+    const gradeBtn = card.querySelector(".btn-grade-test");
+    if (gradeBtn) {
+      gradeBtn.onclick = () => {
+        openGradeModal(req);
+      };
+    }
+
+    listDiv.appendChild(card);
+  });
+}
+
+// 점수 기입 모달
+function openGradeModal(req) {
+  const score = prompt(`"${req.task.title}" 테스트 점수를 입력하세요 (0~100):`);
+  if (score === null) return;
+
+  const scoreNum = Number(score);
+  if (!Number.isFinite(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+    alert("점수는 0~100 사이의 숫자를 입력하세요.");
+    return;
+  }
+
+  const wrongCount = prompt("오답 개수를 입력하세요:");
+  if (wrongCount === null) return;
+
+  const wrongNum = Number(wrongCount);
+  if (!Number.isInteger(wrongNum) || wrongNum < 0) {
+    alert("오답 개수는 0 이상의 정수를 입력하세요.");
+    return;
+  }
+
+  // 점수 저장
+  saveTestScore(req, scoreNum, wrongNum);
+}
+
+async function saveTestScore(req, score, wrongCount) {
+  // 과제 상태 업데이트
+  await updateDoc(doc(tasksCol(req.studentId, todayKey), req.taskId), {
+    checkStatus: "completed",
+    testScore: score,
+    testWrongCount: wrongCount,
+    testCompletedAt: new Date(),
+    testGradedBy: me.uid
+  });
+
+  // 시험 결과도 저장
+  await addDoc(testsCol(req.studentId, todayKey), {
+    subject: req.task.subject,
+    score: score,
+    wrongCount: wrongCount,
+    createdAt: new Date(),
+    fromCheckRequest: true,
+    taskTitle: req.task.title
+  });
+
+  alert(`${req.studentName}의 "${req.task.title}" 점수가 저장되었습니다!`);
+  await loadCheckRequests();
 }

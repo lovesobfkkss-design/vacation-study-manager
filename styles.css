@@ -95,3 +95,139 @@ textarea.input{ resize:vertical; font-family:inherit; }
   padding:12px; background:#f8f9fb; border-radius:8px; margin-bottom:8px;
   line-height:1.6;
 }
+
+/* 점검 요청 관련 스타일 */
+.btn-check-request{
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 12px;
+  margin-left: 10px;
+}
+.btn-check-request:hover{
+  opacity: 0.9;
+}
+
+.check-status{
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-left: 10px;
+  font-weight: 600;
+}
+.check-status.requested{
+  background: #fff3cd;
+  color: #856404;
+}
+.check-status.testing{
+  background: #cce5ff;
+  color: #004085;
+  animation: pulse 2s infinite;
+}
+.check-status.completed{
+  background: #d4edda;
+  color: #155724;
+}
+
+/* 깜빡이는 알림 효과 */
+.check-alert{
+  display: inline-block;
+}
+.check-alert.blinking{
+  animation: blink 1s ease-in-out infinite;
+}
+@keyframes blink{
+  0%, 100%{ opacity: 1; }
+  50%{ opacity: 0.3; }
+}
+
+@keyframes pulse{
+  0%, 100%{ transform: scale(1); }
+  50%{ transform: scale(1.02); }
+}
+
+.check-count{
+  background: var(--warn);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-left: 10px;
+}
+
+.check-request-card{
+  background: #fff;
+  border: 2px solid #ffc107;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: all 0.2s;
+}
+.check-request-card:hover{
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+.check-status-badge{
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+  font-weight: 600;
+}
+.check-status-badge.waiting{
+  background: #fff3cd;
+  color: #856404;
+}
+.check-status-badge.testing{
+  background: #cce5ff;
+  color: #004085;
+}
+
+.btn-assign-test{
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+.btn-grade-test{
+  background: linear-gradient(135deg, #007bff 0%, #6f42c1 100%);
+}
+
+/* 학원 코드 표시 */
+.academy-code-display{
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.academy-code-display strong{
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+/* 랭킹 탭 */
+.ranking-tabs{
+  display: flex;
+  gap: 8px;
+  background: #fff;
+  padding: 8px;
+  border-radius: 12px;
+}
+.ranking-tab{
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  background: #f1f2f6;
+  color: #666;
+  transition: all 0.2s;
+}
+.ranking-tab.active{
+  background: linear-gradient(135deg, var(--pri) 0%, var(--pri2) 100%);
+  color: #fff;
+}
+.ranking-tab:hover:not(.active){
+  background: #e8e9ed;
+}

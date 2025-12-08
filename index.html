@@ -54,6 +54,15 @@
       <div class="field" id="parentEmailWrap"><label>학부모 이메일 (선택)</label>
         <input id="suParentEmail" class="input" type="email" placeholder="주간 리포트 수신용"/>
       </div>
+      <!-- 학원 관련 필드 -->
+      <div class="field" id="academyNameWrap" style="display:none;">
+        <label>학원 이름</label>
+        <input id="suAcademyName" class="input" type="text" placeholder="예: 강한영어수학"/>
+      </div>
+      <div class="field" id="academyCodeWrap">
+        <label>학원 코드</label>
+        <input id="suAcademyCode" class="input" type="text" placeholder="선생님에게 받은 코드 입력"/>
+      </div>
       <button class="btn" style="width:100%; margin-top:18px" id="signupBtn">회원가입</button>
       <div id="suErr" class="error"></div>
       <div id="suOk" class="success"></div>
@@ -220,9 +229,15 @@
       
       <!-- 랭킹 뷰 -->
       <div id="rankingWrap" style="display:none; margin-top:10px;">
-        <div class="card" style="background:#f8f9fb;">
+        <!-- 랭킹 탭 -->
+        <div class="ranking-tabs">
+          <button class="ranking-tab active" data-ranking="academy">🏠 우리 학원</button>
+          <button class="ranking-tab" data-ranking="national">🌍 전국</button>
+        </div>
+
+        <div class="card" style="background:#f8f9fb; margin-top:12px;">
           <h3 class="title">🏆 <span id="myGradeLabel">내 학년</span> 주간 랭킹</h3>
-          <div class="kicker">점수 = 공부시간(분) + 진행률 × 10</div>
+          <div class="kicker" id="rankingSubtitle">점수 = 공부시간(분) + 진행률 × 10</div>
           <div id="myRankInfo" style="margin:16px 0; padding:16px; background:#fff; border-radius:12px; border:2px solid var(--pri);">
             <div style="text-align:center;">
               <div class="kicker">내 순위</div>
@@ -240,10 +255,16 @@
   <div class="container" id="adminView" style="display:none;">
     <div class="card">
       <div class="row" style="justify-content:space-between; align-items:center;">
-        <h2 class="title">👨‍🏫 관리자 대시보드</h2>
+        <div>
+          <h2 class="title" style="margin-bottom:4px;">👨‍🏫 관리자 대시보드</h2>
+          <div class="row" style="gap:12px; align-items:center;">
+            <span class="kicker" id="adminAcademyName">학원명</span>
+            <span class="academy-code-display">학원코드: <strong id="adminAcademyCode">-</strong></span>
+          </div>
+        </div>
         <button class="btn" id="adminLogoutBtn">로그아웃</button>
       </div>
-      
+
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="students">📚 학생 관리</button>
         <button class="admin-tab" data-tab="compare">📊 전체 비교</button>
@@ -252,6 +273,19 @@
       
       <!-- 학생 관리 탭 -->
       <div id="adminTabStudents" class="admin-tab-content">
+        <!-- 점검 요청 섹션 -->
+        <div id="checkRequestSection" style="margin-bottom:24px;">
+          <div class="row" style="align-items:center; margin-bottom:12px;">
+            <h3 class="title" style="margin:0;">
+              <span id="checkRequestAlert" class="check-alert">점검 요청</span>
+            </h3>
+            <span id="checkRequestCount" class="check-count">0</span>
+          </div>
+          <div id="checkRequestList"></div>
+        </div>
+
+        <hr style="border:none; border-top:2px solid #eee; margin:20px 0;">
+
         <div class="kicker">학생 현황 및 관리</div>
         <div id="adminList" style="margin-top:14px;"></div>
       </div>
