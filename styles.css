@@ -231,3 +231,222 @@ textarea.input{ resize:vertical; font-family:inherit; }
 .ranking-tab:hover:not(.active){
   background: #e8e9ed;
 }
+
+/* 학부모 메일 버튼 */
+.btn-parent-email{
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  font-size: 15px;
+  padding: 14px 20px;
+}
+.btn-parent-email:hover{
+  opacity: 0.9;
+}
+
+/* 원격 제어 알림 애니메이션 */
+@keyframes fadeInOut{
+  0%{ opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  15%{ opacity: 1; transform: translateX(-50%) translateY(0); }
+  85%{ opacity: 1; transform: translateX(-50%) translateY(0); }
+  100%{ opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
+
+/* 경고 팝업 흔들림 애니메이션 */
+@keyframes warningShake{
+  0%, 100%{ transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90%{ transform: translateX(-10px); }
+  20%, 40%, 60%, 80%{ transform: translateX(10px); }
+}
+
+/* 경고 팝업 펄스 효과 */
+@keyframes warningPulse{
+  0%, 100%{ box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
+  50%{ box-shadow: 0 0 0 20px rgba(255, 107, 107, 0); }
+}
+
+/* 가입 현황 테이블 스타일 */
+.registration-table-wrap{
+  overflow-x: auto;
+  margin-top: 12px;
+}
+.registration-table{
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.registration-table thead{
+  background: linear-gradient(135deg, var(--pri) 0%, var(--pri2) 100%);
+}
+.registration-table th{
+  color: #fff;
+  padding: 14px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+}
+.registration-table td{
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+.registration-table tbody tr:last-child td{
+  border-bottom: none;
+}
+.registration-table tbody tr:hover{
+  background: #f8f9fb;
+}
+.registration-table .empty-msg{
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 40px 16px;
+}
+.registration-table .grade-badge{
+  background: #eef2ff;
+  color: #4f46e5;
+  font-weight: 700;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  display: inline-block;
+}
+
+/* 실시간 표시 */
+.live-indicator{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #22a06b;
+  font-weight: 600;
+}
+.live-dot{
+  width: 8px;
+  height: 8px;
+  background: #22a06b;
+  border-radius: 50%;
+  animation: livePulse 1.5s ease-in-out infinite;
+}
+@keyframes livePulse{
+  0%, 100%{ opacity: 1; transform: scale(1); }
+  50%{ opacity: 0.5; transform: scale(1.2); }
+}
+
+/* 서브탭 스타일 */
+.sub-tabs{
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: #f8f9fb;
+  padding: 6px;
+  border-radius: 12px;
+}
+.sub-tab{
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  background: transparent;
+  color: #666;
+  transition: all 0.2s;
+}
+.sub-tab.active{
+  background: #fff;
+  color: var(--pri);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.sub-tab:hover:not(.active){
+  background: rgba(255,255,255,0.5);
+}
+
+/* 슈퍼 관리자 배지 */
+.super-admin-badge{
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  color: #333;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+/* 아코디언 스타일 */
+.academy-accordion{
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+.academy-accordion:hover{
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.accordion-header{
+  padding: 16px 20px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8f9fb;
+  transition: background 0.2s;
+}
+.accordion-header:hover{
+  background: #f0f1f5;
+}
+.accordion-title{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.accordion-icon{
+  font-size: 12px;
+  color: #666;
+  transition: transform 0.2s;
+}
+.academy-code-tag{
+  background: linear-gradient(135deg, var(--pri) 0%, var(--pri2) 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+}
+.accordion-meta{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.student-count-badge{
+  background: #22a06b;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.academy-created{
+  font-size: 12px;
+  color: #999;
+}
+.accordion-content{
+  border-top: 1px solid #eee;
+  animation: slideDown 0.2s ease-out;
+}
+@keyframes slideDown{
+  from{ opacity: 0; transform: translateY(-10px); }
+  to{ opacity: 1; transform: translateY(0); }
+}
+.accordion-table{
+  border-radius: 0;
+  box-shadow: none;
+}
+.accordion-table thead{
+  background: linear-gradient(135deg, #5a6fd6 0%, #6b5b95 100%);
+}

@@ -21,29 +21,133 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// 카카오 SDK 초기화
+if (window.Kakao && !window.Kakao.isInitialized()) {
+  window.Kakao.init('81a7dfd46e80c803f2b0f7a4e47aedbe');
+}
+
 let me = null;
 let myData = null;
 let currentSubject = "모든 과목";
 const subjects = new Set(["모든 과목", "국어", "영어", "수학", "과학", "사회"]);
-const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+// todayKey를 함수로 변경 - 자정 넘어도 올바른 날짜 반환
+function getTodayKey() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+}
 let timerSeconds = 0;
 let timerId = null;
 let lastSave = 0;
 let unsubTasks = null;
+let unsubWarning = null;
+let unsubRegistrations = null;
+let unsubAllAcademies = null;
 let currentScope = "today";
+
+// 슈퍼 관리자 설정
+const SUPER_ADMIN_EMAIL = "lovesobfkkss@gmail.com";
+function isSuperAdmin() {
+  return me && me.email === SUPER_ADMIN_EMAIL;
+}
 let currentStudentId = null;
 
-function dailyRef(uid = me?.uid, key = todayKey) {
-  return doc(db, "users", uid, "daily", key);
+// Firebase 사용량 추적 (관리자 알림용)
+let dailyReadCount = 0;
+let dailyWriteCount = 0;
+const USAGE_WARNING_THRESHOLD = { read: 40000, write: 16000 }; // 80% 기준
+let usageWarningShown = false;
+
+// 사용량 추적 함수
+function trackRead(count = 1) {
+  dailyReadCount += count;
+  checkUsageWarning();
+}
+function trackWrite(count = 1) {
+  dailyWriteCount += count;
+  checkUsageWarning();
+}
+
+// 관리자에게 사용량 경고 표시
+function checkUsageWarning() {
+  if (usageWarningShown) return;
+  if (!myData || myData.role !== "admin") return;
+
+  if (dailyReadCount >= USAGE_WARNING_THRESHOLD.read || dailyWriteCount >= USAGE_WARNING_THRESHOLD.write) {
+    usageWarningShown = true;
+    showUsageWarningModal();
+  }
+}
+
+function showUsageWarningModal() {
+  const modal = document.createElement('div');
+  modal.id = 'usageWarningModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+  modal.innerHTML = `
+    <div style="background:#fff;padding:24px;border-radius:16px;max-width:500px;width:100%;text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
+      <h3 style="color:#ff6b6b;margin:0 0 16px 0;">Firebase 사용량 경고</h3>
+      <p style="color:#666;line-height:1.6;margin-bottom:20px;">
+        오늘 사용량이 무료 한도의 <strong>80%</strong>에 도달했습니다.<br><br>
+        <strong>읽기:</strong> ${dailyReadCount.toLocaleString()} / 50,000회<br>
+        <strong>쓰기:</strong> ${dailyWriteCount.toLocaleString()} / 20,000회<br><br>
+        학생 수가 많아지면 <strong>유료 플랜(Blaze)</strong> 전환을 권장합니다.<br>
+        (200명 기준 월 약 5,000~20,000원)
+      </p>
+      <div style="display:flex;gap:8px;justify-content:center;">
+        <a href="https://console.firebase.google.com" target="_blank"
+           style="padding:12px 20px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border-radius:10px;text-decoration:none;font-weight:600;">
+          Firebase 콘솔 열기
+        </a>
+        <button onclick="document.getElementById('usageWarningModal').remove()"
+                style="padding:12px 20px;background:#f1f2f6;border:none;border-radius:10px;cursor:pointer;font-weight:600;">
+          닫기
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// 매일 자정에 카운터 리셋 (localStorage 사용)
+function initUsageTracking() {
+  const savedDate = localStorage.getItem('usageDate');
+  const today = getTodayKey();
+
+  if (savedDate !== today) {
+    // 새 날짜 - 카운터 리셋
+    dailyReadCount = 0;
+    dailyWriteCount = 0;
+    usageWarningShown = false;
+    localStorage.setItem('usageDate', today);
+    localStorage.setItem('dailyReadCount', '0');
+    localStorage.setItem('dailyWriteCount', '0');
+  } else {
+    // 같은 날 - 저장된 값 복원
+    dailyReadCount = parseInt(localStorage.getItem('dailyReadCount') || '0');
+    dailyWriteCount = parseInt(localStorage.getItem('dailyWriteCount') || '0');
+  }
+}
+
+// 주기적으로 localStorage에 저장
+setInterval(() => {
+  localStorage.setItem('dailyReadCount', dailyReadCount.toString());
+  localStorage.setItem('dailyWriteCount', dailyWriteCount.toString());
+}, 30000); // 30초마다
+
+function dailyRef(uid = me?.uid, key = null) {
+  if (!uid) { console.error("dailyRef: uid is required"); return null; }
+  return doc(db, "users", uid, "daily", key || getTodayKey());
 }
 function dailiesCol(uid = me?.uid) {
+  if (!uid) { console.error("dailiesCol: uid is required"); return null; }
   return collection(db, "users", uid, "daily");
 }
-function tasksCol(uid = me?.uid, key = todayKey) {
-  return collection(db, "users", uid, "daily", key, "tasks");
+function tasksCol(uid = me?.uid, key = null) {
+  if (!uid) { console.error("tasksCol: uid is required"); return null; }
+  return collection(db, "users", uid, "daily", key || getTodayKey(), "tasks");
 }
-function testsCol(uid = me?.uid, key = todayKey) {
-  return collection(db, "users", uid, "daily", key, "testResults");
+function testsCol(uid = me?.uid, key = null) {
+  if (!uid) { console.error("testsCol: uid is required"); return null; }
+  return collection(db, "users", uid, "daily", key || getTodayKey(), "testResults");
 }
 function evalsCol(uid) {
   return collection(db, "users", uid, "evaluations");
@@ -75,6 +179,14 @@ document.getElementById("closeModalBtn").onclick = closeModal;
 document.getElementById("saveEvalBtn").onclick = saveEvaluation;
 document.getElementById("addTaskToStudentBtn").onclick = addTaskToStudent;
 document.getElementById("saveCounselBtn").onclick = saveCounseling;
+document.getElementById("sendWarningBtn").onclick = sendWarningToStudent;
+document.getElementById("closeWarningBtn").onclick = closeWarningModal;
+
+// 경고 메시지 직접 입력 토글
+document.getElementById("warningMessageSelect").onchange = function() {
+  const customWrap = document.getElementById("customWarningWrap");
+  customWrap.style.display = this.value === "custom" ? "block" : "none";
+};
 
 // 관리자 탭 전환
 document.querySelectorAll(".admin-tab").forEach(tab => {
@@ -91,7 +203,16 @@ async function login() {
   try {
     await signInWithEmailAndPassword(auth, email, pw);
   } catch (error) {
-    errDiv.textContent = "로그인 실패: " + (error.message || "알 수 없는 오류");
+    // 에러 코드에 따라 친절한 메시지 표시
+    let msg = "알 수 없는 오류가 발생했습니다.";
+    if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password" || error.code === "auth/user-not-found") {
+      msg = "이메일 또는 비밀번호가 올바르지 않습니다.";
+    } else if (error.code === "auth/invalid-email") {
+      msg = "이메일 형식이 올바르지 않습니다.";
+    } else if (error.code === "auth/too-many-requests") {
+      msg = "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요.";
+    }
+    errDiv.textContent = msg;
   }
 }
 
@@ -227,7 +348,14 @@ async function signup() {
 }
 
 async function logout() {
+  // 타이머 정지
   if (timerId) { clearInterval(timerId); timerId = null; }
+  // Firestore 리스너 해제
+  if (unsubTasks) { unsubTasks(); unsubTasks = null; }
+  if (unsubCheckRequests) { unsubCheckRequests(); unsubCheckRequests = null; }
+  if (unsubDailyStatus) { unsubDailyStatus(); unsubDailyStatus = null; }
+  if (unsubStudentTimer) { unsubStudentTimer(); unsubStudentTimer = null; }
+  if (unsubWarning) { unsubWarning(); unsubWarning = null; }
   await signOut(auth);
 }
 
@@ -241,12 +369,14 @@ onAuthStateChanged(auth, async user => {
     document.getElementById("adminView").style.display = "none";
     return;
   }
-  
+
   me = user;
+  initUsageTracking(); // 사용량 추적 초기화
   
   try {
     const userRef = doc(db, "users", me.uid);
     const userDoc = await getDoc(userRef);
+    trackRead();
     
     if (!userDoc.exists()) {
       await setDoc(userRef, { 
@@ -278,7 +408,7 @@ async function renderStudent() {
   document.getElementById("signupView").style.display = "none";
   document.getElementById("adminView").style.display = "none";
   document.getElementById("studentView").style.display = "block";
-  document.getElementById("todayLabel").textContent = todayKey;
+  document.getElementById("todayLabel").textContent = getTodayKey();
   renderTabs();
   document.getElementById("taskTitle").textContent = `[${currentSubject}] 학습 항목`;
   await loadDailyStatus();
@@ -286,6 +416,9 @@ async function renderStudent() {
   await renderTestList();
   await renderScoreChart();
   setScope(currentScope);
+
+  // 경고 알림 리스너 설정
+  setupWarningListener();
 }
 
 function renderTabs() {
@@ -317,6 +450,17 @@ function renderTabs() {
   tabWrap.appendChild(addBtn);
 }
 
+let unsubDailyStatus = null;
+
+// 원격 제어 알림 표시
+function showRemoteControlAlert(message) {
+  const alert = document.createElement('div');
+  alert.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#667eea;color:#fff;padding:12px 24px;border-radius:10px;font-weight:600;z-index:9999;animation:fadeInOut 3s forwards;';
+  alert.textContent = message;
+  document.body.appendChild(alert);
+  setTimeout(() => alert.remove(), 3000);
+}
+
 async function loadDailyStatus() {
   const snap = await getDoc(dailyRef());
   let progress = 0, seconds = 0;
@@ -329,6 +473,33 @@ async function loadDailyStatus() {
   }
   renderProgress(progress);
   timerSeconds = seconds;
+
+  // 관리자 원격 제어 감지를 위한 실시간 리스너
+  if (unsubDailyStatus) unsubDailyStatus();
+  unsubDailyStatus = onSnapshot(dailyRef(), (docSnap) => {
+    if (!docSnap.exists()) return;
+    const data = docSnap.data();
+
+    // 관리자가 원격으로 제어한 경우
+    if (data.timerControlledBy && data.timerControlledBy !== me.uid) {
+      // 타이머 시작 명령
+      if (data.timerRunning && !timerId) {
+        startTimer();
+        showRemoteControlAlert("관리자가 타이머를 시작했습니다.");
+      }
+      // 타이머 정지 명령
+      if (!data.timerRunning && timerId) {
+        pauseTimer();
+        showRemoteControlAlert("관리자가 타이머를 정지했습니다.");
+      }
+      // 타이머 초기화
+      if (data.timerSeconds === 0 && timerSeconds > 0) {
+        timerSeconds = 0;
+        renderTimer();
+        showRemoteControlAlert("관리자가 타이머를 초기화했습니다.");
+      }
+    }
+  });
   renderTimer();
 }
 
@@ -339,8 +510,10 @@ function renderProgress(pct) {
   fill.textContent = pct + "%";
 }
 
-async function recalcProgressAndSave(uid = me.uid, key = todayKey) {
+async function recalcProgressAndSave(uid = me.uid, key = null) {
+  key = key || getTodayKey();
   const q = await getDocs(tasksCol(uid, key));
+  trackRead(q.size || 1);
   let total = 0, done = 0;
   q.forEach(docu => {
     const t = docu.data();
@@ -349,13 +522,14 @@ async function recalcProgressAndSave(uid = me.uid, key = todayKey) {
     if (t.completed) done++;
   });
   const pct = (total > 0 ? Math.round(done / total * 100) : 0);
-  if (uid === me.uid && key === todayKey) renderProgress(pct);
-  await setDoc(dailyRef(uid, key), { 
-    progress: pct, 
-    totalTasks: total, 
+  if (uid === me.uid && key === getTodayKey()) renderProgress(pct);
+  await setDoc(dailyRef(uid, key), {
+    progress: pct,
+    totalTasks: total,
     completedTasks: done,
     lastUpdated: new Date()
   }, { merge: true });
+  trackWrite();
 }
 
 function startTimer() {
@@ -363,9 +537,13 @@ function startTimer() {
   timerId = setInterval(() => {
     timerSeconds += 1;
     renderTimer();
-    if (Date.now() - lastSave > 10000) {
+    if (Date.now() - lastSave > 60000) {
       lastSave = Date.now();
-      setDoc(dailyRef(), { timerSeconds }, { merge: true });
+      setDoc(dailyRef(), { timerSeconds }, { merge: true }).then(() => {
+        trackWrite();
+      }).catch(err => {
+        console.error("타이머 저장 실패:", err);
+      });
     }
   }, 1000);
 }
@@ -374,14 +552,18 @@ function pauseTimer() {
   if (!timerId) return;
   clearInterval(timerId);
   timerId = null;
-  setDoc(dailyRef(), { timerSeconds }, { merge: true });
+  setDoc(dailyRef(), { timerSeconds }, { merge: true }).catch(err => {
+    console.error("타이머 저장 실패:", err);
+  });
 }
 
 function resetTimer() {
   if (!confirm("오늘 타이머를 0으로 초기화할까요?")) return;
   timerSeconds = 0;
   renderTimer();
-  setDoc(dailyRef(), { timerSeconds }, { merge: true });
+  setDoc(dailyRef(), { timerSeconds }, { merge: true }).catch(err => {
+    console.error("타이머 초기화 저장 실패:", err);
+  });
 }
 
 function renderTimer() {
@@ -402,9 +584,14 @@ async function addTask() {
   }
   const title = prompt(`${subj}에서 추가할 항목명:`);
   if (!title) return;
-  await setDoc(dailyRef(), {}, { merge: true });
-  await addDoc(tasksCol(), { subject: subj, title, completed: false, createdAt: new Date() });
-  await recalcProgressAndSave();
+  try {
+    await setDoc(dailyRef(), {}, { merge: true });
+    await addDoc(tasksCol(), { subject: subj, title, completed: false, createdAt: new Date() });
+    await recalcProgressAndSave();
+  } catch (err) {
+    console.error("과제 추가 실패:", err);
+    alert("과제 추가에 실패했습니다. 인터넷 연결을 확인해주세요.");
+  }
 }
 
 function loadTasks(subj) {
@@ -851,11 +1038,24 @@ async function renderAdmin() {
 async function switchAdminTab(tabName) {
   document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
   document.querySelector(`[data-tab="${tabName}"]`).classList.add("active");
-  
+
   document.getElementById("adminTabStudents").style.display = "none";
   document.getElementById("adminTabCompare").style.display = "none";
   document.getElementById("adminTabWarning").style.display = "none";
-  
+  document.getElementById("adminTabRegistrations").style.display = "none";
+
+  // 가입 현황 탭에서 벗어날 때 리스너 해제
+  if (tabName !== "registrations") {
+    if (unsubRegistrations) {
+      unsubRegistrations();
+      unsubRegistrations = null;
+    }
+    if (unsubAllAcademies) {
+      unsubAllAcademies();
+      unsubAllAcademies = null;
+    }
+  }
+
   if (tabName === "students") {
     document.getElementById("adminTabStudents").style.display = "block";
     await renderStudentList();
@@ -865,6 +1065,267 @@ async function switchAdminTab(tabName) {
   } else if (tabName === "warning") {
     document.getElementById("adminTabWarning").style.display = "block";
     await renderWarningView();
+  } else if (tabName === "registrations") {
+    document.getElementById("adminTabRegistrations").style.display = "block";
+    loadStudentRegistrations();
+  }
+}
+
+// 가입 현황 실시간 로드
+function loadStudentRegistrations() {
+  // 슈퍼 관리자일 경우 전체 학원 탭 표시
+  if (isSuperAdmin()) {
+    document.getElementById("allAcademiesSubTab").style.display = "block";
+  } else {
+    document.getElementById("allAcademiesSubTab").style.display = "none";
+  }
+
+  // 서브탭 이벤트 설정
+  setupRegistrationSubTabs();
+
+  // 우리 학원 학생 로드
+  loadMyAcademyStudents();
+}
+
+// 서브탭 전환 설정
+function setupRegistrationSubTabs() {
+  const subTabs = document.querySelectorAll("#registrationSubTabs .sub-tab");
+  subTabs.forEach(tab => {
+    tab.onclick = () => {
+      // 탭 활성화
+      subTabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+
+      const subtab = tab.dataset.subtab;
+      document.getElementById("myAcademyContent").style.display = "none";
+      document.getElementById("allAcademiesContent").style.display = "none";
+
+      if (subtab === "myAcademy") {
+        document.getElementById("myAcademyContent").style.display = "block";
+        loadMyAcademyStudents();
+      } else if (subtab === "allAcademies") {
+        document.getElementById("allAcademiesContent").style.display = "block";
+        loadAllAcademiesRegistrations();
+      }
+    };
+  });
+}
+
+// 우리 학원 학생 로드
+function loadMyAcademyStudents() {
+  // 이미 리스너가 있으면 해제
+  if (unsubRegistrations) {
+    unsubRegistrations();
+  }
+
+  const tbody = document.getElementById("registrationTableBody");
+  const countEl = document.getElementById("totalStudentCount");
+
+  // 실시간 리스너 설정
+  const q = query(
+    collection(db, "users"),
+    where("role", "==", "student"),
+    where("academyId", "==", myData.academyId || "")
+  );
+
+  unsubRegistrations = onSnapshot(q, (snapshot) => {
+    trackRead(snapshot.size || 1);
+
+    if (snapshot.empty) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-msg">아직 가입한 학생이 없습니다.</td></tr>';
+      countEl.textContent = "0";
+      return;
+    }
+
+    // 가입일시 기준 정렬 (최신순)
+    const students = [];
+    snapshot.forEach(doc => {
+      students.push({ id: doc.id, ...doc.data() });
+    });
+    students.sort((a, b) => {
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+      return dateB - dateA; // 최신순
+    });
+
+    countEl.textContent = students.length;
+
+    // 테이블 렌더링
+    tbody.innerHTML = students.map(student => {
+      const createdAt = student.createdAt?.toDate ? student.createdAt.toDate() : new Date(student.createdAt || 0);
+      const formattedDate = createdAt.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Seoul'
+      });
+
+      return `
+        <tr>
+          <td><strong>${student.name || '-'}</strong></td>
+          <td><span class="grade-badge">${student.grade || '-'}</span></td>
+          <td>${student.email || '-'}</td>
+          <td>${formattedDate}</td>
+        </tr>
+      `;
+    }).join('');
+  }, (error) => {
+    console.error("가입 현황 로드 오류:", error);
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-msg">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>';
+  });
+}
+
+// 전체 학원 가입 현황 로드 (슈퍼 관리자 전용)
+function loadAllAcademiesRegistrations() {
+  if (!isSuperAdmin()) return;
+
+  // 이미 리스너가 있으면 해제
+  if (unsubAllAcademies) {
+    unsubAllAcademies();
+  }
+
+  const listEl = document.getElementById("allAcademiesList");
+  const academyCountEl = document.getElementById("totalAcademyCount");
+  const studentCountEl = document.getElementById("totalAllStudentCount");
+
+  // 학원 목록 실시간 리스너
+  unsubAllAcademies = onSnapshot(collection(db, "academies"), async (academySnap) => {
+    trackRead(academySnap.size || 1);
+
+    if (academySnap.empty) {
+      listEl.innerHTML = '<div class="ghost">등록된 학원이 없습니다.</div>';
+      academyCountEl.textContent = "0";
+      studentCountEl.textContent = "0";
+      return;
+    }
+
+    // 학원 데이터 수집
+    const academies = [];
+    academySnap.forEach(doc => {
+      academies.push({ id: doc.id, ...doc.data() });
+    });
+
+    // 각 학원별 학생 수 조회
+    let totalStudents = 0;
+    const academyDataPromises = academies.map(async (academy) => {
+      const studentsSnap = await getDocs(query(
+        collection(db, "users"),
+        where("role", "==", "student"),
+        where("academyId", "==", academy.id)
+      ));
+      trackRead(studentsSnap.size || 1);
+
+      const students = [];
+      studentsSnap.forEach(doc => {
+        students.push({ id: doc.id, ...doc.data() });
+      });
+
+      // 가입일시 기준 정렬 (최신순)
+      students.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB - dateA;
+      });
+
+      totalStudents += students.length;
+
+      return {
+        ...academy,
+        students,
+        studentCount: students.length
+      };
+    });
+
+    const academyData = await Promise.all(academyDataPromises);
+
+    // 학생 수 기준 정렬 (많은 순)
+    academyData.sort((a, b) => b.studentCount - a.studentCount);
+
+    academyCountEl.textContent = academyData.length;
+    studentCountEl.textContent = totalStudents;
+
+    // 아코디언 렌더링
+    listEl.innerHTML = academyData.map((academy, index) => {
+      const createdAt = academy.createdAt?.toDate ? academy.createdAt.toDate() : new Date(academy.createdAt || 0);
+      const formattedDate = createdAt.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'Asia/Seoul'
+      });
+
+      const studentsHtml = academy.students.length > 0
+        ? `<table class="registration-table accordion-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>학년</th>
+                <th>이메일</th>
+                <th>가입일시</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${academy.students.map(student => {
+                const studentCreatedAt = student.createdAt?.toDate ? student.createdAt.toDate() : new Date(student.createdAt || 0);
+                const studentDate = studentCreatedAt.toLocaleString('ko-KR', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZone: 'Asia/Seoul'
+                });
+                return `
+                  <tr>
+                    <td><strong>${student.name || '-'}</strong></td>
+                    <td><span class="grade-badge">${student.grade || '-'}</span></td>
+                    <td>${student.email || '-'}</td>
+                    <td>${studentDate}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>`
+        : '<div class="ghost" style="padding:16px;">아직 가입한 학생이 없습니다.</div>';
+
+      return `
+        <div class="academy-accordion">
+          <div class="accordion-header" onclick="toggleAccordion(${index})">
+            <div class="accordion-title">
+              <span class="accordion-icon" id="accordionIcon${index}">▶</span>
+              <strong>${academy.name || '이름 없음'}</strong>
+              <span class="academy-code-tag">${academy.code || '-'}</span>
+            </div>
+            <div class="accordion-meta">
+              <span class="student-count-badge">${academy.studentCount}명</span>
+              <span class="academy-created">생성: ${formattedDate}</span>
+            </div>
+          </div>
+          <div class="accordion-content" id="accordionContent${index}" style="display:none;">
+            ${studentsHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }, (error) => {
+    console.error("전체 학원 로드 오류:", error);
+    listEl.innerHTML = '<div class="ghost">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+  });
+}
+
+// 아코디언 토글
+function toggleAccordion(index) {
+  const content = document.getElementById(`accordionContent${index}`);
+  const icon = document.getElementById(`accordionIcon${index}`);
+
+  if (content.style.display === "none") {
+    content.style.display = "block";
+    icon.textContent = "▼";
+  } else {
+    content.style.display = "none";
+    icon.textContent = "▶";
   }
 }
 
@@ -881,6 +1342,7 @@ async function renderStudentList() {
     where("role", "==", "student"),
     where("academyId", "==", myData.academyId || "")
   ));
+  trackRead(usersSnap.size || 1);
 
   if (usersSnap.empty) {
     list.innerHTML = '<div class="ghost">등록된 학생이 없습니다.</div>';
@@ -889,7 +1351,7 @@ async function renderStudentList() {
 
   for (const userDoc of usersSnap.docs) {
     const userData = userDoc.data();
-    const dailySnap = await getDoc(dailyRef(userDoc.id, todayKey));
+    const dailySnap = await getDoc(dailyRef(userDoc.id, getTodayKey()));
     const dailyData = dailySnap.exists() ? dailySnap.data() : {};
 
     const progress = Number(dailyData.progress) || 0;
@@ -935,7 +1397,7 @@ async function renderCompareView() {
   
   for (const userDoc of usersSnap.docs) {
     const userData = userDoc.data();
-    const dailySnap = await getDoc(dailyRef(userDoc.id, todayKey));
+    const dailySnap = await getDoc(dailyRef(userDoc.id, getTodayKey()));
     const dailyData = dailySnap.exists() ? dailySnap.data() : {};
     
     const progress = Number(dailyData.progress) || 0;
@@ -1099,16 +1561,25 @@ async function renderWarningView() {
   });
 }
 
+let currentStudentData = null;
+
 async function openStudentModal(uid, userData) {
   currentStudentId = uid;
+  currentStudentData = userData;
   document.getElementById("studentModal").style.display = "block";
   document.getElementById("modalStudentName").textContent = userData.name;
-  document.getElementById("modalTodayDate").textContent = todayKey;
-  
+  document.getElementById("modalTodayDate").textContent = getTodayKey();
+
+  // 학부모 이메일 표시
+  document.getElementById("modalParentEmail").textContent = userData.parentEmail || "(등록되지 않음)";
+
+  // 학부모 메일 버튼 이벤트
+  document.getElementById("sendParentEmailBtn").onclick = () => sendParentEmail(uid, userData);
+
   // 오늘 평가 불러오기
-  const evalQ = query(evalsCol(uid), where("date", "==", todayKey), limit(1));
+  const evalQ = query(evalsCol(uid), where("date", "==", getTodayKey()), limit(1));
   const evalSnap = await getDocs(evalQ);
-  
+
   if (!evalSnap.empty) {
     const evalData = evalSnap.docs[0].data();
     document.getElementById("evalFocus").value = evalData.focus || "";
@@ -1123,16 +1594,98 @@ async function openStudentModal(uid, userData) {
     document.getElementById("evalUnderstanding").value = "";
     document.getElementById("evalMemo").value = "";
   }
-  
+
   // 상담 메모 불러오기
   await loadCounselingHistory(uid);
-  
+
   document.getElementById("evalSuccess").textContent = "";
+
+  // 타이머 원격 제어 설정
+  await loadStudentTimer(uid);
 }
 
 function closeModal() {
   document.getElementById("studentModal").style.display = "none";
   currentStudentId = null;
+  // 타이머 실시간 리스너 해제
+  if (unsubStudentTimer) {
+    unsubStudentTimer();
+    unsubStudentTimer = null;
+  }
+}
+
+// 학생 타이머 원격 제어
+let unsubStudentTimer = null;
+
+async function loadStudentTimer(uid) {
+  // 기존 리스너 해제
+  if (unsubStudentTimer) {
+    unsubStudentTimer();
+    unsubStudentTimer = null;
+  }
+
+  // 실시간 타이머 상태 감시
+  unsubStudentTimer = onSnapshot(dailyRef(uid, getTodayKey()), (snap) => {
+    const data = snap.exists() ? snap.data() : {};
+    const seconds = Number(data.timerSeconds) || 0;
+    const isRunning = data.timerRunning || false;
+
+    // 시간 표시
+    const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+    const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+    const s = String(seconds % 60).padStart(2, '0');
+    document.getElementById("modalTimerDisplay").textContent = `${h}:${m}:${s}`;
+
+    // 상태 표시
+    document.getElementById("modalTimerStatus").textContent = isRunning ? "🟢 실행 중" : "⏸️ 정지됨";
+    document.getElementById("modalTimerStatus").style.color = isRunning ? "#22a06b" : "#666";
+  });
+
+  // 버튼 이벤트 연결
+  document.getElementById("modalTimerStartBtn").onclick = () => remoteTimerStart(uid);
+  document.getElementById("modalTimerPauseBtn").onclick = () => remoteTimerPause(uid);
+  document.getElementById("modalTimerResetBtn").onclick = () => remoteTimerReset(uid);
+}
+
+async function remoteTimerStart(uid) {
+  try {
+    await setDoc(dailyRef(uid, getTodayKey()), {
+      timerRunning: true,
+      timerStartedAt: new Date(),
+      timerControlledBy: me.uid
+    }, { merge: true });
+    trackWrite();
+  } catch (err) {
+    alert("타이머 시작 실패: " + err.message);
+  }
+}
+
+async function remoteTimerPause(uid) {
+  try {
+    await setDoc(dailyRef(uid, getTodayKey()), {
+      timerRunning: false,
+      timerPausedAt: new Date(),
+      timerControlledBy: me.uid
+    }, { merge: true });
+    trackWrite();
+  } catch (err) {
+    alert("타이머 정지 실패: " + err.message);
+  }
+}
+
+async function remoteTimerReset(uid) {
+  if (!confirm("이 학생의 오늘 타이머를 0으로 초기화할까요?")) return;
+  try {
+    await setDoc(dailyRef(uid, getTodayKey()), {
+      timerSeconds: 0,
+      timerRunning: false,
+      timerResetAt: new Date(),
+      timerControlledBy: me.uid
+    }, { merge: true });
+    trackWrite();
+  } catch (err) {
+    alert("타이머 초기화 실패: " + err.message);
+  }
 }
 
 async function saveEvaluation() {
@@ -1150,7 +1703,7 @@ async function saveEvaluation() {
   }
   
   const evalData = {
-    date: todayKey,
+    date: getTodayKey(),
     focus,
     homework,
     attitude,
@@ -1169,31 +1722,40 @@ async function saveEvaluation() {
 }
 
 async function addTaskToStudent() {
-  if (!currentStudentId) return;
-  
+  if (!currentStudentId) {
+    alert("학생이 선택되지 않았습니다.");
+    return;
+  }
+
   const subject = document.getElementById("taskSubject").value.trim();
-  const title = document.getElementById("taskTitle").value.trim();
-  
+  const title = document.getElementById("adminTaskTitle").value.trim();
+
   if (!subject || !title) {
     alert("과목과 항목 내용을 모두 입력하세요.");
     return;
   }
-  
-  await setDoc(dailyRef(currentStudentId, todayKey), {}, { merge: true });
-  await addDoc(tasksCol(currentStudentId, todayKey), {
-    subject,
-    title,
-    completed: false,
-    createdAt: new Date(),
-    assignedBy: me.uid
-  });
-  
-  await recalcProgressAndSave(currentStudentId, todayKey);
-  
-  document.getElementById("taskSubject").value = "";
-  document.getElementById("taskTitle").value = "";
-  
-  alert("학습 지시가 추가되었습니다!");
+
+  try {
+    await setDoc(dailyRef(currentStudentId, getTodayKey()), {}, { merge: true });
+    await addDoc(tasksCol(currentStudentId, getTodayKey()), {
+      subject,
+      title,
+      completed: false,
+      createdAt: new Date(),
+      assignedBy: me.uid
+    });
+    trackWrite(2);
+
+    await recalcProgressAndSave(currentStudentId, getTodayKey());
+
+    document.getElementById("taskSubject").value = "";
+    document.getElementById("adminTaskTitle").value = "";
+
+    alert("학습 지시가 추가되었습니다!");
+  } catch (err) {
+    console.error("학습 지시 추가 실패:", err);
+    alert("학습 지시 추가 실패: " + err.message);
+  }
 }
 
 async function saveCounseling() {
@@ -1209,7 +1771,7 @@ async function saveCounseling() {
     memo,
     counseledBy: me.uid,
     counseledAt: new Date(),
-    date: todayKey
+    date: getTodayKey()
   });
   
   document.getElementById("counselMemo").value = "";
@@ -1219,18 +1781,19 @@ async function saveCounseling() {
 }
 
 async function renderDailyReport() {
+  const today = getTodayKey();
   // 오늘의 데이터 가져오기
-  const dailySnap = await getDoc(dailyRef(me.uid, todayKey));
+  const dailySnap = await getDoc(dailyRef(me.uid, today));
   const dailyData = dailySnap.exists() ? dailySnap.data() : {};
 
   // 제목 업데이트
   document.querySelector("#reportWrap h3.title").textContent = "📊 오늘의 AI 학습 리포트";
-  document.getElementById("reportWeekRange").textContent = todayKey;
+  document.getElementById("reportWeekRange").textContent = today;
 
   // 오늘의 평가 데이터 수집
   const evalQ = query(
     evalsCol(me.uid),
-    where("date", "==", todayKey),
+    where("date", "==", today),
     orderBy("evaluatedAt", "desc"),
     limit(1)
   );
@@ -1238,7 +1801,7 @@ async function renderDailyReport() {
   const todayEval = evalSnap.empty ? null : evalSnap.docs[0].data();
 
   // 오늘의 시험 결과 수집
-  const testQ = query(testsCol(me.uid, todayKey));
+  const testQ = query(testsCol(me.uid, today));
   const testSnap = await getDocs(testQ);
   const testScores = {};
   testSnap.forEach(docu => {
@@ -1248,7 +1811,7 @@ async function renderDailyReport() {
   });
 
   // 오늘의 과목별 학습 항목 수집
-  const tasksQ = query(tasksCol(me.uid, todayKey));
+  const tasksQ = query(tasksCol(me.uid, today));
   const tasksSnap = await getDocs(tasksQ);
   const subjectTasks = {};
   tasksSnap.forEach(docu => {
@@ -1911,7 +2474,7 @@ async function renderWeeklyReport() {
     }
   }
   
-  if (completedTasks / totalTasks < 0.7) {
+  if (totalTasks > 0 && completedTasks / totalTasks < 0.7) {
     suggestions.push(`<div class="report-item">과제 완성률이 ${Math.round(completedTasks / totalTasks * 100)}%입니다. 계획을 좀 더 현실적으로 세우거나, 완성도를 높여보세요.</div>`);
   }
   
@@ -1936,7 +2499,7 @@ async function renderWeeklyReport() {
     strengths.push(`<div class="report-item">💪 <strong>열정적인 학습!</strong> 이번 주 총 ${hours}시간 이상 공부했어요. 대단합니다!</div>`);
   }
   
-  if (completedTasks / totalTasks >= 0.8) {
+  if (totalTasks > 0 && completedTasks / totalTasks >= 0.8) {
     strengths.push(`<div class="report-item">🎯 <strong>높은 완성도!</strong> 주어진 과제의 ${Math.round(completedTasks / totalTasks * 100)}%를 완료했어요. 책임감이 훌륭해요!</div>`);
   }
   
@@ -2327,7 +2890,7 @@ async function renderMonthlyReport() {
   for (let i = 1; i < weeklyData.length; i++) {
     weekProgressDiffs.push(Math.abs(weeklyData[i].avgProgress - weeklyData[i-1].avgProgress));
   }
-  const avgDiff = weekProgressDiffs.reduce((a, b) => a + b, 0) / weekProgressDiffs.length;
+  const avgDiff = weekProgressDiffs.length > 0 ? weekProgressDiffs.reduce((a, b) => a + b, 0) / weekProgressDiffs.length : 0;
   if (avgDiff > 20) {
     suggestions.push(`<div class="report-item">주차별 진행률이 불규칙합니다(평균 편차 ${Math.round(avgDiff)}%). 일정한 학습 리듬을 만드는 것이 중요합니다.</div>`);
   }
@@ -2446,7 +3009,7 @@ async function loadCheckRequests() {
 
   for (const userDoc of usersSnap.docs) {
     const userData = userDoc.data();
-    const tasksQ = query(tasksCol(userDoc.id, todayKey));
+    const tasksQ = query(tasksCol(userDoc.id, getTodayKey()));
     const tasksSnap = await getDocs(tasksQ);
 
     tasksSnap.forEach(taskDoc => {
@@ -2517,7 +3080,7 @@ async function loadCheckRequests() {
     if (assignBtn) {
       assignBtn.onclick = async () => {
         if (!confirm(`${req.studentName}에게 "${req.task.title}" 테스트를 배부하시겠습니까?`)) return;
-        await updateDoc(doc(tasksCol(req.studentId, todayKey), req.taskId), {
+        await updateDoc(doc(tasksCol(req.studentId, getTodayKey()), req.taskId), {
           checkStatus: "testAssigned",
           testAssignedAt: new Date(),
           testAssignedBy: me.uid
@@ -2563,8 +3126,9 @@ function openGradeModal(req) {
 }
 
 async function saveTestScore(req, score, wrongCount) {
+  const today = getTodayKey();
   // 과제 상태 업데이트
-  await updateDoc(doc(tasksCol(req.studentId, todayKey), req.taskId), {
+  await updateDoc(doc(tasksCol(req.studentId, today), req.taskId), {
     checkStatus: "completed",
     testScore: score,
     testWrongCount: wrongCount,
@@ -2573,7 +3137,7 @@ async function saveTestScore(req, score, wrongCount) {
   });
 
   // 시험 결과도 저장
-  await addDoc(testsCol(req.studentId, todayKey), {
+  await addDoc(testsCol(req.studentId, today), {
     subject: req.task.subject,
     score: score,
     wrongCount: wrongCount,
@@ -2584,4 +3148,408 @@ async function saveTestScore(req, score, wrongCount) {
 
   alert(`${req.studentName}의 "${req.task.title}" 점수가 저장되었습니다!`);
   await loadCheckRequests();
+}
+
+// 학부모 주간 리포트 메일 발송
+async function sendParentEmail(uid, userData) {
+  if (!userData.parentEmail) {
+    alert("학부모 이메일이 등록되어 있지 않습니다.");
+    return;
+  }
+
+  // 로딩 표시
+  const loadingDiv = document.createElement('div');
+  loadingDiv.id = 'emailLoading';
+  loadingDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  loadingDiv.innerHTML = '<div style="background:#fff;padding:30px;border-radius:16px;text-align:center;"><div style="font-size:24px;margin-bottom:10px;">📧</div><div id="loadingText">리포트 생성 중...</div></div>';
+  document.body.appendChild(loadingDiv);
+
+  const updateLoading = (text) => {
+    const el = document.getElementById('loadingText');
+    if (el) el.textContent = text;
+  };
+
+  try {
+
+    // 주간 날짜 범위 계산
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    const weekKeys = [];
+    for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
+      weekKeys.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }));
+    }
+
+    const weekRange = `${weekKeys[0]} ~ ${weekKeys[6]}`;
+
+    // 주간 데이터 수집
+    let totalTime = 0;
+    let totalProgress = 0;
+    let studyDays = 0;
+    let dayCount = 0;
+
+    for (const key of weekKeys) {
+      const dailySnap = await getDoc(dailyRef(uid, key));
+      if (dailySnap.exists()) {
+        const d = dailySnap.data();
+        const sec = Number(d.timerSeconds) || 0;
+        const prog = Number(d.progress) || 0;
+
+        if (sec > 0) studyDays++;
+        totalTime += sec;
+        totalProgress += prog;
+        dayCount++;
+      }
+    }
+
+    const avgProgress = dayCount > 0 ? Math.round(totalProgress / dayCount) : 0;
+    const hours = Math.floor(totalTime / 3600);
+    const mins = Math.floor((totalTime % 3600) / 60);
+
+    updateLoading("성적 데이터 수집 중...");
+
+    // 과목별 성적 수집
+    const subjectScores = {};
+    for (const key of weekKeys) {
+      const testSnap = await getDocs(testsCol(uid, key));
+      testSnap.forEach(doc => {
+        const t = doc.data();
+        if (!subjectScores[t.subject]) {
+          subjectScores[t.subject] = [];
+        }
+        subjectScores[t.subject].push({ score: t.score, wrong: t.wrongCount });
+      });
+    }
+
+    // 주간 평가 수집 (인덱스 필요할 수 있음 - 간단히 처리)
+    let evalSummary = "";
+    let latestMemo = "";
+    try {
+      const evalQ = query(
+        evalsCol(uid),
+        where("date", ">=", weekKeys[0]),
+        where("date", "<=", weekKeys[6]),
+        orderBy("date", "desc"),
+        limit(5)
+      );
+      const evalSnap = await getDocs(evalQ);
+
+      if (!evalSnap.empty) {
+        const evalCounts = { focus: [], homework: [], attitude: [], understanding: [] };
+        evalSnap.forEach(doc => {
+          const e = doc.data();
+          if (e.focus) evalCounts.focus.push(e.focus);
+          if (e.homework) evalCounts.homework.push(e.homework);
+          if (e.attitude) evalCounts.attitude.push(e.attitude);
+          if (e.understanding) evalCounts.understanding.push(e.understanding);
+          if (e.memo && !latestMemo) latestMemo = e.memo;
+        });
+
+        const getAvgGrade = (arr) => {
+          if (arr.length === 0) return "-";
+          const map = { "상": 3, "중": 2, "하": 1 };
+          const avg = arr.reduce((sum, g) => sum + (map[g] || 0), 0) / arr.length;
+          if (avg >= 2.5) return "상";
+          if (avg >= 1.5) return "중";
+          return "하";
+        };
+
+        evalSummary = `집중력: ${getAvgGrade(evalCounts.focus)} | 숙제: ${getAvgGrade(evalCounts.homework)} | 태도: ${getAvgGrade(evalCounts.attitude)} | 이해도: ${getAvgGrade(evalCounts.understanding)}`;
+      }
+    } catch (evalErr) {
+      console.warn("평가 데이터 조회 실패 (인덱스 필요할 수 있음):", evalErr);
+    }
+
+    updateLoading("랭킹 계산 중...");
+
+    // 학원 내 랭킹 계산 (오늘 데이터 기준 - 빠른 계산)
+    let academyRank = "-";
+    let academyTotal = 0;
+    const todayForRanking = getTodayKey();
+
+    if (userData.grade && userData.academyId) {
+      const academyUsersSnap = await getDocs(query(
+        collection(db, "users"),
+        where("grade", "==", userData.grade),
+        where("academyId", "==", userData.academyId)
+      ));
+
+      const rankings = [];
+      for (const userDoc of academyUsersSnap.docs) {
+        const u = userDoc.data();
+        if (u.role !== "student") continue;
+
+        const snap = await getDoc(dailyRef(userDoc.id, todayForRanking));
+        let score = 0;
+        if (snap.exists()) {
+          const d = snap.data();
+          const mins = Math.floor((Number(d.timerSeconds) || 0) / 60);
+          const prog = Number(d.progress) || 0;
+          score = mins + (prog * 10);
+        }
+        rankings.push({ id: userDoc.id, score });
+      }
+
+      rankings.sort((a, b) => b.score - a.score);
+      academyTotal = rankings.length;
+      const myIdx = rankings.findIndex(r => r.id === uid);
+      if (myIdx >= 0) academyRank = myIdx + 1;
+    }
+
+    // 과목별 성적 텍스트
+    let subjectText = "";
+    for (const [subj, scores] of Object.entries(subjectScores)) {
+      const avgScore = Math.round(scores.reduce((s, x) => s + x.score, 0) / scores.length);
+      const avgWrong = Math.round(scores.reduce((s, x) => s + x.wrong, 0) / scores.length);
+      subjectText += `• ${subj}: ${avgScore}점 (평균 오답 ${avgWrong}개)\n`;
+    }
+    if (!subjectText) subjectText = "• 이번 주 시험 기록 없음\n";
+
+    // 메일 제목
+    const emailSubject = `[${myData?.academyName || "학원"}] ${userData.name} 학생 주간 학습 리포트 (${weekRange})`;
+
+    // 메일 본문
+    const body = `안녕하세요, ${userData.name} 학생의 학부모님.
+
+이번 주 학습 현황을 알려드립니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 이번 주 요약
+• 총 공부시간: ${hours}시간 ${mins}분
+• 평균 진행률: ${avgProgress}%
+• 학습일수: ${studyDays}일/7일
+
+🏆 학원 내 랭킹 (${userData.grade})
+• ${academyRank}위 / ${academyTotal}명
+
+📚 과목별 성적
+${subjectText}
+👨‍🏫 선생님 평가
+${evalSummary || "• 이번 주 평가 기록 없음"}
+${latestMemo ? `\n📝 선생님 코멘트\n"${latestMemo}"` : ""}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+감사합니다.
+${myData?.academyName || "학원"} 드림
+`;
+
+    // mailto 링크로 메일 앱 열기
+    const mailtoLink = `mailto:${userData.parentEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(body)}`;
+
+    // 로딩 화면 제거
+    const loading = document.getElementById('emailLoading');
+    if (loading) loading.remove();
+
+    // 복사 모달 표시
+    const copyModal = document.createElement('div');
+    copyModal.id = 'copyEmailModal';
+    copyModal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+    copyModal.innerHTML = `
+      <div style="background:#fff;padding:24px;border-radius:16px;max-width:600px;width:100%;max-height:80vh;overflow:auto;">
+        <h3 style="margin:0 0 16px 0;color:#667eea;">📧 학부모 주간 리포트</h3>
+        <div style="margin-bottom:12px;">
+          <label style="font-weight:600;font-size:14px;">받는 사람:</label>
+          <input type="text" value="${userData.parentEmail}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-weight:600;font-size:14px;">제목:</label>
+          <input type="text" id="emailSubjectField" value="${emailSubject}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-weight:600;font-size:14px;">내용:</label>
+          <textarea id="emailBodyField" readonly style="width:100%;height:250px;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;font-size:13px;line-height:1.5;resize:none;">${body}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="copyEmailBtn" style="flex:1;min-width:140px;padding:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;">📋 내용 복사</button>
+          <button id="kakaoShareBtn" style="flex:1;min-width:140px;padding:12px;background:#FEE500;color:#3C1E1E;border:none;border-radius:10px;cursor:pointer;font-weight:600;">💬 카톡 보내기</button>
+          <button id="closeEmailModal" style="padding:12px 20px;background:#f1f2f6;border:none;border-radius:10px;cursor:pointer;font-weight:600;">닫기</button>
+        </div>
+        <p id="copyStatus" style="text-align:center;margin-top:12px;color:#22a06b;font-weight:600;display:none;">✅ 복사되었습니다!</p>
+      </div>
+    `;
+    document.body.appendChild(copyModal);
+
+    // 복사 버튼
+    document.getElementById('copyEmailBtn').onclick = async () => {
+      const fullText = `받는 사람: ${userData.parentEmail}\n제목: ${emailSubject}\n\n${body}`;
+      try {
+        await navigator.clipboard.writeText(fullText);
+        document.getElementById('copyStatus').style.display = 'block';
+      } catch (e) {
+        // 폴백: textarea 선택 후 복사
+        const textarea = document.getElementById('emailBodyField');
+        textarea.select();
+        document.execCommand('copy');
+        document.getElementById('copyStatus').style.display = 'block';
+      }
+    };
+
+    // 카톡 공유 버튼
+    document.getElementById('kakaoShareBtn').onclick = () => {
+      // 카카오톡 공유 (텍스트)
+      if (window.Kakao && window.Kakao.isInitialized()) {
+        window.Kakao.Share.sendDefault({
+          objectType: 'text',
+          text: `📊 ${userData.name} 학생 주간 리포트\n\n` +
+                `총 공부시간: ${hours}시간 ${mins}분\n` +
+                `평균 진행률: ${avgProgress}%\n` +
+                `학습일수: ${studyDays}일/7일\n` +
+                `학원 내 랭킹: ${academyRank}위/${academyTotal}명\n\n` +
+                (evalSummary ? `선생님 평가: ${evalSummary}\n` : '') +
+                (latestMemo ? `코멘트: "${latestMemo}"` : ''),
+          link: {
+            mobileWebUrl: window.location.href,
+            webUrl: window.location.href
+          }
+        });
+      } else {
+        // 카카오 SDK 미설정시 복사 후 안내
+        const kakaoText = `📊 ${userData.name} 학생 주간 리포트 (${weekRange})\n\n` +
+                `총 공부시간: ${hours}시간 ${mins}분\n` +
+                `평균 진행률: ${avgProgress}%\n` +
+                `학습일수: ${studyDays}일/7일\n` +
+                `학원 내 랭킹: ${academyRank}위/${academyTotal}명\n\n` +
+                (evalSummary ? `👨‍🏫 선생님 평가\n${evalSummary}\n\n` : '') +
+                (latestMemo ? `📝 코멘트\n"${latestMemo}"` : '');
+
+        navigator.clipboard.writeText(kakaoText).then(() => {
+          alert('내용이 복사되었습니다!\n카카오톡에서 붙여넣기 해주세요.');
+        }).catch(() => {
+          alert('복사 실패. 내용을 직접 복사해주세요.');
+        });
+      }
+    };
+
+    // 닫기 버튼
+    document.getElementById('closeEmailModal').onclick = () => {
+      copyModal.remove();
+    };
+  } catch (err) {
+    // 로딩 화면 제거
+    const loading = document.getElementById('emailLoading');
+    if (loading) loading.remove();
+
+    console.error("학부모 메일 생성 오류:", err);
+    alert("메일 생성 중 오류가 발생했습니다: " + err.message);
+  }
+}
+
+// ========== 경고 알림 기능 ==========
+
+// 관리자가 학생에게 경고 보내기
+async function sendWarningToStudent() {
+  if (!currentStudentId) {
+    alert("학생이 선택되지 않았습니다.");
+    return;
+  }
+
+  const selectValue = document.getElementById("warningMessageSelect").value;
+  let warningMessage;
+
+  if (selectValue === "custom") {
+    warningMessage = document.getElementById("customWarningInput").value.trim();
+    if (!warningMessage) {
+      alert("경고 메시지를 입력하세요.");
+      return;
+    }
+  } else {
+    warningMessage = selectValue;
+  }
+
+  try {
+    // 학생의 사용자 문서에 경고 정보 저장
+    const userRef = doc(db, "users", currentStudentId);
+    await setDoc(userRef, {
+      warning: {
+        message: warningMessage,
+        sentAt: new Date(),
+        sentBy: me.uid,
+        read: false
+      }
+    }, { merge: true });
+
+    trackWrite(1);
+
+    // 입력 초기화
+    document.getElementById("warningMessageSelect").value = "멍때리지 말고 집중!";
+    document.getElementById("customWarningWrap").style.display = "none";
+    document.getElementById("customWarningInput").value = "";
+
+    alert("⚠️ 경고가 전송되었습니다!");
+  } catch (err) {
+    console.error("경고 전송 실패:", err);
+    alert("경고 전송 실패: " + err.message);
+  }
+}
+
+// 학생 화면에 경고 팝업 표시
+function showWarningPopup(warningData) {
+  const modal = document.getElementById("warningModal");
+  const messageText = document.getElementById("warningMessageText");
+  const timeText = document.getElementById("warningTime");
+
+  messageText.textContent = warningData.message;
+
+  // 시간 포맷팅
+  const sentAt = warningData.sentAt?.toDate ? warningData.sentAt.toDate() : new Date(warningData.sentAt);
+  timeText.textContent = sentAt.toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  modal.style.display = "flex";
+}
+
+// 경고 팝업 닫기
+async function closeWarningModal() {
+  const modal = document.getElementById("warningModal");
+  modal.style.display = "none";
+
+  // 경고를 읽음 처리
+  if (me) {
+    try {
+      const userRef = doc(db, "users", me.uid);
+      await setDoc(userRef, {
+        warning: {
+          read: true
+        }
+      }, { merge: true });
+      trackWrite(1);
+    } catch (err) {
+      console.error("경고 읽음 처리 실패:", err);
+    }
+  }
+}
+
+// 학생용: 경고 수신 리스너 설정
+function setupWarningListener() {
+  if (!me || myData?.role !== "student") return;
+
+  // 기존 리스너 해제
+  if (unsubWarning) {
+    unsubWarning();
+    unsubWarning = null;
+  }
+
+  const userRef = doc(db, "users", me.uid);
+  unsubWarning = onSnapshot(userRef, (docSnap) => {
+    if (!docSnap.exists()) return;
+
+    const data = docSnap.data();
+    if (data.warning && !data.warning.read) {
+      showWarningPopup(data.warning);
+    }
+  }, (err) => {
+    console.error("경고 리스너 오류:", err);
+  });
 }

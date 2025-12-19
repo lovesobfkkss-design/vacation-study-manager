@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>학습관리 시스템</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.6.0/kakao.min.js"></script>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -269,6 +270,7 @@
         <button class="admin-tab active" data-tab="students">📚 학생 관리</button>
         <button class="admin-tab" data-tab="compare">📊 전체 비교</button>
         <button class="admin-tab" data-tab="warning">⚠️ 위험군</button>
+        <button class="admin-tab" data-tab="registrations">👥 가입 현황</button>
       </div>
       
       <!-- 학생 관리 탭 -->
@@ -307,6 +309,63 @@
       <div id="adminTabWarning" class="admin-tab-content" style="display:none;">
         <div class="kicker">진행률 40% 미만 또는 3일 이상 미학습 학생</div>
         <div id="warningList" style="margin-top:14px;"></div>
+      </div>
+
+      <!-- 가입 현황 탭 -->
+      <div id="adminTabRegistrations" class="admin-tab-content" style="display:none;">
+        <!-- 서브탭 (슈퍼관리자만 전체 학원 탭 표시) -->
+        <div class="sub-tabs" id="registrationSubTabs">
+          <button class="sub-tab active" data-subtab="myAcademy">🏠 우리 학원</button>
+          <button class="sub-tab" data-subtab="allAcademies" id="allAcademiesSubTab" style="display:none;">🌍 전체 학원</button>
+        </div>
+
+        <!-- 우리 학원 서브탭 컨텐츠 -->
+        <div id="myAcademyContent" class="sub-tab-content">
+          <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div>
+              <div class="kicker">우리 학원 가입 학생</div>
+              <div style="font-size:14px; color:#666; margin-top:4px;">총 <strong id="totalStudentCount">0</strong>명</div>
+            </div>
+            <div id="registrationLiveIndicator" class="live-indicator">
+              <span class="live-dot"></span> 실시간
+            </div>
+          </div>
+          <div class="registration-table-wrap">
+            <table class="registration-table">
+              <thead>
+                <tr>
+                  <th>이름</th>
+                  <th>학년</th>
+                  <th>이메일</th>
+                  <th>가입일시</th>
+                </tr>
+              </thead>
+              <tbody id="registrationTableBody">
+                <tr><td colspan="4" class="empty-msg">학생 데이터를 불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 전체 학원 서브탭 컨텐츠 (슈퍼관리자 전용) -->
+        <div id="allAcademiesContent" class="sub-tab-content" style="display:none;">
+          <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div>
+              <div class="kicker" style="display:flex; align-items:center; gap:8px;">
+                전체 학원 현황 <span class="super-admin-badge">슈퍼관리자</span>
+              </div>
+              <div style="font-size:14px; color:#666; margin-top:4px;">
+                총 <strong id="totalAcademyCount">0</strong>개 학원 / <strong id="totalAllStudentCount">0</strong>명 학생
+              </div>
+            </div>
+            <div class="live-indicator">
+              <span class="live-dot"></span> 실시간
+            </div>
+          </div>
+          <div id="allAcademiesList">
+            <div class="ghost">학원 데이터를 불러오는 중...</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -379,6 +438,41 @@
           <div id="evalSuccess" class="success"></div>
         </div>
 
+        <!-- 경고 알림 보내기 -->
+        <div style="margin-top:24px; padding-top:24px; border-top:2px solid #eee;">
+          <h3 class="title">⚠️ 경고 알림</h3>
+          <div class="row" style="gap:12px; margin-top:12px;">
+            <div class="field" style="flex:1;">
+              <label>경고 메시지</label>
+              <select id="warningMessageSelect" class="input">
+                <option value="멍때리지 말고 집중!">멍때리지 말고 집중!</option>
+                <option value="지금 뭐하니? 빨리 공부해!">지금 뭐하니? 빨리 공부해!</option>
+                <option value="내가 지켜보고 있다 👀">내가 지켜보고 있다 👀</option>
+                <option value="딴짓하지 마!">딴짓하지 마!</option>
+                <option value="custom">직접 입력...</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" id="customWarningWrap" style="display:none; margin-top:8px;">
+            <input id="customWarningInput" class="input" placeholder="직접 경고 메시지를 입력하세요"/>
+          </div>
+          <button class="btn" style="width:100%; margin-top:12px; background:linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);" id="sendWarningBtn">⚠️ 경고 알림 보내기</button>
+        </div>
+
+        <!-- 타이머 원격 제어 -->
+        <div style="margin-top:24px; padding-top:24px; border-top:2px solid #eee;">
+          <h3 class="title">⏱️ 타이머 원격 제어</h3>
+          <div style="display:flex; align-items:center; gap:16px; margin-top:12px;">
+            <div style="font-size:28px; font-weight:700; font-family:monospace;" id="modalTimerDisplay">00:00:00</div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn" id="modalTimerStartBtn" style="background:#22a06b;">▶ 시작</button>
+              <button class="btn" id="modalTimerPauseBtn" style="background:#ff6b6b;">⏸ 정지</button>
+              <button class="btn btn-outline" id="modalTimerResetBtn">초기화</button>
+            </div>
+          </div>
+          <p class="kicker" style="margin-top:8px;">상태: <span id="modalTimerStatus">-</span></p>
+        </div>
+
         <!-- 학습 지시 -->
         <div style="margin-top:24px; padding-top:24px; border-top:2px solid #eee;">
           <h3 class="title">📝 학습 지시 추가</h3>
@@ -389,12 +483,30 @@
             </div>
             <div class="field" style="flex:1;">
               <label>항목 내용</label>
-              <input id="taskTitle" class="input" placeholder="예: 인강 3개 듣기"/>
+              <input id="adminTaskTitle" class="input" placeholder="예: 인강 3개 듣기"/>
             </div>
             <button class="btn" style="height:42px; align-self:flex-end;" id="addTaskToStudentBtn">추가</button>
           </div>
         </div>
+
+        <!-- 학부모 메일 발송 -->
+        <div style="margin-top:24px; padding-top:24px; border-top:2px solid #eee;">
+          <h3 class="title">📧 학부모 주간 리포트</h3>
+          <p class="kicker" style="margin-bottom:12px;">학부모 이메일: <strong id="modalParentEmail">-</strong></p>
+          <button class="btn btn-parent-email" style="width:100%;" id="sendParentEmailBtn">📧 학부모에게 주간 리포트 보내기</button>
+        </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 학생용 경고 팝업 모달 -->
+  <div id="warningModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:#fff; border-radius:20px; padding:40px; max-width:400px; text-align:center; animation: warningShake 0.5s ease-in-out;">
+      <div style="font-size:80px; margin-bottom:20px;">⚠️</div>
+      <h2 style="color:#ff6b6b; margin:0 0 16px 0;">선생님 경고!</h2>
+      <p id="warningMessageText" style="font-size:18px; color:#333; margin-bottom:24px; line-height:1.6;"></p>
+      <p style="color:#666; font-size:13px; margin-bottom:20px;">보낸 시간: <span id="warningTime"></span></p>
+      <button class="btn" style="width:100%; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);" id="closeWarningBtn">확인했습니다</button>
     </div>
   </div>
 
