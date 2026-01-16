@@ -8383,11 +8383,29 @@ function saveApiKeys(geminiKey, openaiKey, claudeKey) {
 }
 
 function updateAiStatus() {
+  console.log('🔄 [updateAiStatus] 상태 업데이트 시작');
+
   const { geminiKey, openaiKey, claudeKey } = getApiKeys();
+
+  console.log('🔄 [updateAiStatus] API 키 상태:');
+  console.log('  - Gemini:', geminiKey ? `✅ 설정됨 (${geminiKey.substring(0, 10)}...)` : '❌ 없음');
+  console.log('  - OpenAI:', openaiKey ? `✅ 설정됨 (${openaiKey.substring(0, 10)}...)` : '❌ 없음');
+  console.log('  - Claude:', claudeKey ? `✅ 설정됨 (${claudeKey.substring(0, 10)}...)` : '❌ 없음');
+
+  // localStorage 직접 확인
+  console.log('🔄 [updateAiStatus] localStorage 직접 확인:');
+  console.log('  - geminiApiKey:', localStorage.getItem('geminiApiKey')?.substring(0, 15) || '(없음)');
+  console.log('  - openaiApiKey:', localStorage.getItem('openaiApiKey')?.substring(0, 15) || '(없음)');
+  console.log('  - claudeApiKey:', localStorage.getItem('claudeApiKey')?.substring(0, 15) || '(없음)');
 
   const geminiState = document.querySelector('#geminiStatus .ai-state');
   const gptState = document.querySelector('#gptStatus .ai-state');
   const claudeState = document.querySelector('#claudeStatus .ai-state');
+
+  console.log('🔄 [updateAiStatus] DOM 요소 찾기:');
+  console.log('  - geminiState:', geminiState ? '✅ 찾음' : '❌ 못찾음');
+  console.log('  - gptState:', gptState ? '✅ 찾음' : '❌ 못찾음');
+  console.log('  - claudeState:', claudeState ? '✅ 찾음' : '❌ 못찾음');
 
   if (geminiState) {
     if (geminiKey) {
@@ -8410,6 +8428,7 @@ function updateAiStatus() {
   }
 
   if (claudeState) {
+    console.log('🔄 [updateAiStatus] Claude 상태 업데이트:', claudeKey ? '준비됨' : '미설정');
     if (claudeKey) {
       claudeState.textContent = '준비됨';
       claudeState.dataset.state = 'ready';
@@ -8418,18 +8437,43 @@ function updateAiStatus() {
       claudeState.dataset.state = 'unconfigured';
     }
   }
+
+  console.log('🔄 [updateAiStatus] 상태 업데이트 완료');
 }
 
 function loadApiKeysToInputs() {
+  console.log('📥 [loadApiKeysToInputs] 입력 필드에 키 로드 시작');
+
   const { geminiKey, openaiKey, claudeKey } = getApiKeys();
+
+  console.log('📥 [loadApiKeysToInputs] 가져온 키:');
+  console.log('  - Gemini:', geminiKey ? `${geminiKey.substring(0, 15)}...` : '(없음)');
+  console.log('  - OpenAI:', openaiKey ? `${openaiKey.substring(0, 15)}...` : '(없음)');
+  console.log('  - Claude:', claudeKey ? `${claudeKey.substring(0, 15)}...` : '(없음)');
+
   const geminiInput = document.getElementById('geminiApiKey');
   const openaiInput = document.getElementById('openaiApiKey');
   const claudeInput = document.getElementById('claudeApiKey');
 
-  if (geminiInput && geminiKey) geminiInput.value = geminiKey;
-  if (openaiInput && openaiKey) openaiInput.value = openaiKey;
-  if (claudeInput && claudeKey) claudeInput.value = claudeKey;
+  console.log('📥 [loadApiKeysToInputs] 입력 필드 찾기:');
+  console.log('  - geminiInput:', geminiInput ? '✅' : '❌');
+  console.log('  - openaiInput:', openaiInput ? '✅' : '❌');
+  console.log('  - claudeInput:', claudeInput ? '✅' : '❌');
 
+  if (geminiInput && geminiKey) {
+    geminiInput.value = geminiKey;
+    console.log('📥 [loadApiKeysToInputs] Gemini 입력 필드 설정 완료');
+  }
+  if (openaiInput && openaiKey) {
+    openaiInput.value = openaiKey;
+    console.log('📥 [loadApiKeysToInputs] OpenAI 입력 필드 설정 완료');
+  }
+  if (claudeInput && claudeKey) {
+    claudeInput.value = claudeKey;
+    console.log('📥 [loadApiKeysToInputs] Claude 입력 필드 설정 완료');
+  }
+
+  console.log('📥 [loadApiKeysToInputs] updateAiStatus 호출');
   updateAiStatus();
 }
 
@@ -8506,25 +8550,41 @@ async function callGptVision(imageUrl, prompt) {
 
 // Call Claude Vision API
 async function callClaudeVision(imageUrl, prompt) {
+  console.log('🟣 [Claude] callClaudeVision 시작');
+  console.log('🟣 [Claude] imageUrl:', imageUrl?.substring(0, 100) + '...');
+  console.log('🟣 [Claude] prompt 길이:', prompt?.length);
+
   const { claudeKey } = getApiKeys();
-  if (!claudeKey) throw new Error('Claude API 키가 설정되지 않았습니다.');
+  console.log('🟣 [Claude] API 키 존재:', !!claudeKey);
+  console.log('🟣 [Claude] API 키 앞부분:', claudeKey?.substring(0, 20) + '...');
 
-  // Fetch image and convert to base64
-  const imageResponse = await fetch(imageUrl);
-  const imageBlob = await imageResponse.blob();
-  const base64 = await blobToBase64(imageBlob);
-  const mimeType = imageBlob.type || 'image/jpeg';
+  if (!claudeKey) {
+    console.error('🟣 [Claude] ❌ API 키가 없습니다!');
+    throw new Error('Claude API 키가 설정되지 않았습니다.');
+  }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': claudeKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+  try {
+    // Fetch image and convert to base64
+    console.log('🟣 [Claude] 이미지 다운로드 중...');
+    const imageResponse = await fetch(imageUrl);
+    console.log('🟣 [Claude] 이미지 응답 상태:', imageResponse.status);
+
+    if (!imageResponse.ok) {
+      throw new Error(`이미지 다운로드 실패: ${imageResponse.status}`);
+    }
+
+    const imageBlob = await imageResponse.blob();
+    console.log('🟣 [Claude] 이미지 blob 크기:', imageBlob.size, 'bytes');
+    console.log('🟣 [Claude] 이미지 타입:', imageBlob.type);
+
+    const base64 = await blobToBase64(imageBlob);
+    const mimeType = imageBlob.type || 'image/jpeg';
+    const base64Data = base64.split(',')[1];
+    console.log('🟣 [Claude] Base64 데이터 길이:', base64Data?.length);
+
+    // API 요청 준비
+    const requestBody = {
+      model: 'claude-sonnet-4-5',  // 최신 모델명 (2025년 기준)
       max_tokens: 2048,
       messages: [{
         role: 'user',
@@ -8534,22 +8594,50 @@ async function callClaudeVision(imageUrl, prompt) {
             source: {
               type: 'base64',
               media_type: mimeType,
-              data: base64.split(',')[1]
+              data: base64Data
             }
           },
           { type: 'text', text: prompt }
         ]
       }]
-    })
-  });
+    };
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'Claude API 호출 실패');
+    console.log('🟣 [Claude] API 요청 시작...');
+    console.log('🟣 [Claude] 모델:', requestBody.model);
+    console.log('🟣 [Claude] max_tokens:', requestBody.max_tokens);
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': claudeKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    console.log('🟣 [Claude] API 응답 상태:', response.status, response.statusText);
+
+    const responseData = await response.json();
+    console.log('🟣 [Claude] API 응답 데이터:', JSON.stringify(responseData).substring(0, 500));
+
+    if (!response.ok) {
+      console.error('🟣 [Claude] ❌ API 오류:', responseData);
+      throw new Error(responseData.error?.message || `Claude API 오류: ${response.status}`);
+    }
+
+    const resultText = responseData.content?.[0]?.text || '';
+    console.log('🟣 [Claude] ✅ 성공! 응답 길이:', resultText.length);
+    console.log('🟣 [Claude] 응답 미리보기:', resultText.substring(0, 200) + '...');
+
+    return resultText;
+
+  } catch (error) {
+    console.error('🟣 [Claude] ❌ 예외 발생:', error.message);
+    console.error('🟣 [Claude] 스택:', error.stack);
+    throw error;
   }
-
-  const data = await response.json();
-  return data.content?.[0]?.text || '';
 }
 
 // Helper: Convert blob to base64
@@ -8756,18 +8844,43 @@ function setupWrongAnswerTabEvents() {
 
   // API key save button
   const saveApiKeysBtn = document.getElementById("saveApiKeysBtn");
+  console.log('🔧 [setupWrongAnswerTabEvents] saveApiKeysBtn 찾기:', saveApiKeysBtn ? '✅ 찾음' : '❌ 못찾음');
+
   if (saveApiKeysBtn) {
     saveApiKeysBtn.addEventListener("click", () => {
-      const geminiKey = document.getElementById("geminiApiKey")?.value?.trim() || "";
-      const openaiKey = document.getElementById("openaiApiKey")?.value?.trim() || "";
-      const claudeKey = document.getElementById("claudeApiKey")?.value?.trim() || "";
+      console.log('💾 [저장 버튼] 클릭됨!');
+
+      const geminiInput = document.getElementById("geminiApiKey");
+      const openaiInput = document.getElementById("openaiApiKey");
+      const claudeInput = document.getElementById("claudeApiKey");
+
+      console.log('💾 [저장 버튼] 입력 필드 찾기:');
+      console.log('  - geminiInput:', geminiInput ? '✅' : '❌');
+      console.log('  - openaiInput:', openaiInput ? '✅' : '❌');
+      console.log('  - claudeInput:', claudeInput ? '✅' : '❌');
+
+      const geminiKey = geminiInput?.value?.trim() || "";
+      const openaiKey = openaiInput?.value?.trim() || "";
+      const claudeKey = claudeInput?.value?.trim() || "";
+
+      console.log('💾 [저장 버튼] 입력된 값:');
+      console.log('  - geminiKey:', geminiKey ? `${geminiKey.substring(0, 15)}... (길이: ${geminiKey.length})` : '(비어있음)');
+      console.log('  - openaiKey:', openaiKey ? `${openaiKey.substring(0, 15)}... (길이: ${openaiKey.length})` : '(비어있음)');
+      console.log('  - claudeKey:', claudeKey ? `${claudeKey.substring(0, 15)}... (길이: ${claudeKey.length})` : '(비어있음)');
+
+      console.log('💾 [저장 버튼] saveApiKeys 호출...');
       saveApiKeys(geminiKey, openaiKey, claudeKey);
+
+      console.log('💾 [저장 버튼] updateAiStatus 호출...');
       updateAiStatus();
-      showNotification("API 키가 저장되었습니다.", "success");
+
+      console.log('💾 [저장 버튼] 완료!');
     });
+    console.log('🔧 [setupWrongAnswerTabEvents] 저장 버튼 이벤트 리스너 등록 완료');
   }
 
   // Load API keys on tab init
+  console.log('🔧 [setupWrongAnswerTabEvents] loadApiKeysToInputs 호출...');
   loadApiKeysToInputs();
   updateAiStatus();
 
