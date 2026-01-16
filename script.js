@@ -8367,9 +8367,17 @@ function getApiKeys() {
 }
 
 function saveApiKeys(geminiKey, openaiKey, claudeKey) {
-  if (geminiKey) localStorage.setItem('geminiApiKey', geminiKey);
-  if (openaiKey) localStorage.setItem('openaiApiKey', openaiKey);
-  if (claudeKey) localStorage.setItem('claudeApiKey', claudeKey);
+  console.log('Saving API keys:', { geminiKey: geminiKey ? '설정됨' : '없음', openaiKey: openaiKey ? '설정됨' : '없음', claudeKey: claudeKey ? '설정됨' : '없음' });
+
+  // 항상 저장 (빈 값이라도)
+  localStorage.setItem('geminiApiKey', geminiKey || '');
+  localStorage.setItem('openaiApiKey', openaiKey || '');
+  localStorage.setItem('claudeApiKey', claudeKey || '');
+
+  // 저장 확인
+  const savedClaude = localStorage.getItem('claudeApiKey');
+  console.log('Claude key saved:', savedClaude ? '성공' : '실패', savedClaude?.substring(0, 20) + '...');
+
   updateAiStatus();
   showNotification('API 키가 저장되었습니다.', 'success');
 }
