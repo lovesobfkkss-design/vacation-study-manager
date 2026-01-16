@@ -8711,26 +8711,63 @@ async function generateProblemExplanation(problem, problemIndex, wrongStats) {
     throw new Error('최소 하나의 API 키가 필요합니다.');
   }
 
-  const prompt = `당신은 교육 전문가입니다. 다음 문제를 분석하고 상세한 해설을 작성해주세요.
+  // 총 학생 수 계산
+  const totalStudents = Object.values(wrongStats).reduce((sum, count) => sum + count, 0);
+  const correctCount = wrongStats[problem.correctAnswer] || 0;
+  const wrongCount = totalStudents - correctCount;
+  const correctRate = totalStudents > 0 ? Math.round((correctCount / totalStudents) * 100) : 0;
 
-문제 번호: ${problemIndex + 1}
-정답: ${problem.correctAnswer}번
-보기 개수: ${problem.choiceCount}개
+  // 오답 선택지 정보
+  const wrongChoices = Object.entries(wrongStats)
+    .filter(([choice]) => parseInt(choice) !== problem.correctAnswer)
+    .map(([choice, count]) => `${choice}번: ${count}명 (${Math.round((count/totalStudents)*100)}%)`)
+    .join(', ');
 
-학생들의 오답 현황:
-${Object.entries(wrongStats).map(([choice, count]) => `- ${choice}번 선택: ${count}명`).join('\n')}
+  const prompt = `당신은 수능/모의고사 영어 전문 강사입니다. 이미지의 문제를 분석하고 **매우 상세한** 해설을 작성해주세요.
 
-다음 형식으로 해설을 작성해주세요:
+## 문제 정보
+- 문제 번호: ${problemIndex + 1}번
+- 정답: ⑤④③②① 중 ${problem.correctAnswer}번
+- 정답률: ${correctRate}%
+- 오답 현황: ${wrongChoices || '없음'}
 
-【정답 해설】
-정답이 ${problem.correctAnswer}번인 이유를 명확하게 설명해주세요. 문제에서 요구하는 핵심 개념과 정답 선택의 근거를 제시해주세요.
+## 해설 작성 요구사항
 
-【오답 분석】
-${Object.keys(wrongStats).filter(k => parseInt(k) !== problem.correctAnswer).map(choice =>
-  `${choice}번: 이 선택지가 왜 틀린지, 정답과의 차이점을 설명해주세요.`
-).join('\n')}
+**반드시 이미지를 꼼꼼히 분석하여** 다음 형식으로 작성하세요:
 
-문제 이미지를 분석하여 정확한 해설을 제공해주세요. 한국어로 답변해주세요.`;
+【정답】 ① ② ③ ④ ⑤ 중 정답 번호와 정답 내용을 그대로 적어주세요
+
+【해설】
+• 먼저 글의 **주제/핵심 논점**을 한 문장으로 요약하세요.
+• 문제 유형별 분석:
+  - 함축의미: 해당 표현의 직역 → 문맥 속 의미 → 근거가 되는 원문 인용
+  - 빈칸추론: 빈칸 앞뒤 논리 관계 → 핵심 단서 문장 인용 → 정답 도출 과정
+  - 순서배열: 주어진 글 요약 → 각 단락 연결고리(지시어, 연결사) → 순서 논리
+  - 문장삽입: 삽입 문장의 핵심 단서 → 앞뒤 문맥과의 연결 → 위치 결정 근거
+  - 무관한 문장: 글의 주제 → 각 문장 역할 → 무관한 문장이 벗어나는 이유
+  - 어휘: 문맥상 필요한 의미 → 원래 어휘의 문제점 → 수정 어휘가 맞는 이유
+  - 요약문: 글의 핵심 내용 → 빈칸 (A), (B)에 들어갈 논리 → 정답 조합
+  - 제목/주제/요지: 글 전체 흐름 요약 → 핵심 키워드 → 정답 선택 근거
+
+• **반드시 원문에서 핵심 문장을 인용**하세요 (영어 원문 + 해석)
+• 예: 'mass education and media train humans to avoid low-tech physical work'
+  (대중 교육과 미디어가 인간을 저기술 육체노동을 피하도록 훈련시킨다)
+
+【오답이 많은 선택지 분석】
+${Object.entries(wrongStats)
+  .filter(([choice]) => parseInt(choice) !== problem.correctAnswer)
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 3)
+  .map(([choice, count]) => `• ${choice}번 (${count}명 선택): 왜 이것이 오답인지 구체적으로 설명. 정답과의 핵심 차이점을 명시.`)
+  .join('\n')}
+
+## 작성 스타일
+- 한국어로 작성
+- 불릿 포인트(•) 사용
+- 핵심 용어는 작은따옴표로 강조
+- 영어 원문 인용 시 해석 병기
+- 단순히 "정답과 다릅니다"가 아닌 **구체적 이유** 제시
+- 학생이 왜 틀렸는지 이해할 수 있도록 **논리적 흐름** 설명`;
 
   let geminiResponse = null;
   let gptResponse = null;
