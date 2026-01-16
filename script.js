@@ -394,6 +394,160 @@ function chatMessagesCol(roomId) {
   return collection(db, "chatRooms", roomId, "messages");
 }
 
+// =====================================================
+// 토큰 시스템 (AI 사용량 관리)
+// =====================================================
+const DEFAULT_FREE_TOKENS = 10; // 신규 학원 무료 토큰
+
+// 학원 토큰 잔액 조회
+async function getAcademyTokenBalance(academyId = null) {
+  const targetAcademyId = academyId || myData?.academyId;
+  if (!targetAcademyId) return 0;
+
+  try {
+    const academyDoc = await getDoc(doc(db, "academies", targetAcademyId));
+    trackRead();
+    if (academyDoc.exists()) {
+      return academyDoc.data().tokenBalance || 0;
+    }
+    return 0;
+  } catch (error) {
+    console.error("토큰 잔액 조회 실패:", error);
+    return 0;
+  }
+}
+
+// 토큰 사용 (AI 생성 시)
+async function useAcademyToken(count = 1, description = "AI 해설 생성") {
+  const academyId = myData?.academyId;
+  if (!academyId) {
+    throw new Error("학원 정보를 찾을 수 없습니다.");
+  }
+
+  const currentBalance = await getAcademyTokenBalance(academyId);
+  if (currentBalance < count) {
+    throw new Error(`토큰이 부족합니다. (현재: ${currentBalance}개, 필요: ${count}개)`);
+  }
+
+  try {
+    // 토큰 차감
+    await updateDoc(doc(db, "academies", academyId), {
+      tokenBalance: increment(-count)
+    });
+    trackWrite();
+
+    // 사용 기록 저장
+    await addDoc(collection(db, "academies", academyId, "tokenHistory"), {
+      type: "use",
+      amount: -count,
+      description: description,
+      usedBy: me?.uid,
+      usedByName: myData?.name || myData?.nickname || "알 수 없음",
+      timestamp: serverTimestamp(),
+      balanceAfter: currentBalance - count
+    });
+    trackWrite();
+
+    // UI 업데이트
+    updateTokenBalanceDisplay(currentBalance - count);
+
+    return currentBalance - count;
+  } catch (error) {
+    console.error("토큰 사용 실패:", error);
+    throw error;
+  }
+}
+
+// 토큰 충전 (슈퍼관리자용)
+async function addAcademyTokens(academyId, amount, description = "수동 충전") {
+  if (!isSuperAdmin()) {
+    throw new Error("권한이 없습니다.");
+  }
+
+  try {
+    const currentBalance = await getAcademyTokenBalance(academyId);
+
+    // 토큰 추가
+    await updateDoc(doc(db, "academies", academyId), {
+      tokenBalance: increment(amount)
+    });
+    trackWrite();
+
+    // 충전 기록 저장
+    await addDoc(collection(db, "academies", academyId, "tokenHistory"), {
+      type: "charge",
+      amount: amount,
+      description: description,
+      chargedBy: me?.uid,
+      chargedByName: myData?.name || "슈퍼관리자",
+      timestamp: serverTimestamp(),
+      balanceAfter: currentBalance + amount
+    });
+    trackWrite();
+
+    return currentBalance + amount;
+  } catch (error) {
+    console.error("토큰 충전 실패:", error);
+    throw error;
+  }
+}
+
+// 토큰 잔액 UI 업데이트
+function updateTokenBalanceDisplay(balance = null) {
+  const tokenBalanceEl = document.getElementById("tokenBalance");
+  const tokenBalanceAdminEl = document.getElementById("tokenBalanceAdmin");
+
+  if (balance !== null) {
+    if (tokenBalanceEl) tokenBalanceEl.textContent = balance;
+    if (tokenBalanceAdminEl) tokenBalanceAdminEl.textContent = balance;
+  } else {
+    // 비동기로 잔액 가져오기
+    getAcademyTokenBalance().then(bal => {
+      if (tokenBalanceEl) tokenBalanceEl.textContent = bal;
+      if (tokenBalanceAdminEl) tokenBalanceAdminEl.textContent = bal;
+    });
+  }
+}
+
+// 토큰 사용 내역 조회
+async function getTokenHistory(academyId, limitCount = 20) {
+  try {
+    const q = query(
+      collection(db, "academies", academyId, "tokenHistory"),
+      orderBy("timestamp", "desc"),
+      limit(limitCount)
+    );
+    const snapshot = await getDocs(q);
+    trackRead(snapshot.size || 1);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error("토큰 내역 조회 실패:", error);
+    return [];
+  }
+}
+
+// 슈퍼관리자용: 모든 학원 토큰 현황 조회
+async function getAllAcademiesTokenStatus() {
+  if (!isSuperAdmin()) return [];
+
+  try {
+    const snapshot = await getDocs(collection(db, "academies"));
+    trackRead(snapshot.size || 1);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error("학원 토큰 현황 조회 실패:", error);
+    return [];
+  }
+}
+
 // 이벤트 리스너
 document.getElementById("loginBtn").onclick = login;
 document.getElementById("showSignupLink").onclick = (e) => { e.preventDefault(); showSignup(); };
@@ -532,17 +686,27 @@ async function signup() {
         }
       }
 
-      // 학원 생성
+      // 학원 생성 (10토큰 무료 지급)
       const academyRef = await addDoc(collection(db, "academies"), {
         name: academyName,
         code: newCode,
+        tokenBalance: DEFAULT_FREE_TOKENS, // 신규 학원 무료 토큰
         createdAt: new Date()
       });
       userAcademyId = academyRef.id;
       userAcademyName = academyName;
 
+      // 초기 토큰 지급 기록
+      await addDoc(collection(db, "academies", academyRef.id, "tokenHistory"), {
+        type: "welcome",
+        amount: DEFAULT_FREE_TOKENS,
+        description: "신규 가입 무료 토큰",
+        timestamp: new Date(),
+        balanceAfter: DEFAULT_FREE_TOKENS
+      });
+
       // 가입 완료 메시지에 코드 포함
-      ok.textContent = `가입 완료! 학원 코드: ${newCode}`;
+      ok.textContent = `가입 완료! 학원 코드: ${newCode} (AI 토큰 ${DEFAULT_FREE_TOKENS}개 지급)`;
     } else {
       // 학생: 학원 코드 검증
       const academyQuery = await getDocs(query(collection(db, "academies"), where("code", "==", academyCode)));
@@ -1594,6 +1758,24 @@ async function renderAdmin() {
     const academyDoc = await getDoc(doc(db, "academies", myData.academyId));
     if (academyDoc.exists()) {
       document.getElementById("adminAcademyCode").textContent = academyDoc.data().code;
+    }
+  }
+
+  // 토큰 잔액 표시
+  updateTokenBalanceDisplay();
+
+  // 슈퍼관리자인 경우 토큰 충전 버튼 추가
+  const tokenHistoryBtn = document.getElementById("tokenHistoryBtn");
+  if (isSuperAdmin() && tokenHistoryBtn) {
+    // 기존 충전 버튼이 없으면 추가
+    if (!document.getElementById("tokenChargeBtn")) {
+      const chargeBtn = document.createElement("button");
+      chargeBtn.id = "tokenChargeBtn";
+      chargeBtn.className = "btn super-admin-token-btn";
+      chargeBtn.textContent = "💰 토큰 충전";
+      chargeBtn.title = "슈퍼관리자 전용";
+      chargeBtn.onclick = showTokenChargeModal;
+      tokenHistoryBtn.parentNode.insertBefore(chargeBtn, tokenHistoryBtn);
     }
   }
 
@@ -10408,9 +10590,28 @@ async function generateAIExplanations() {
   }
 
   // Check if API keys are configured
-  const { geminiKey, openaiKey } = getApiKeys();
-  if (!geminiKey && !openaiKey) {
-    showNotification("API 키를 먼저 설정해주세요. (Gemini 또는 OpenAI)", "warning");
+  const { geminiKey, openaiKey, claudeKey } = getApiKeys();
+  if (!geminiKey && !openaiKey && !claudeKey) {
+    showNotification("API 키를 먼저 설정해주세요. (Gemini, OpenAI 또는 Claude)", "warning");
+    return;
+  }
+
+  // 토큰 체크 - 문제 수만큼 토큰 필요
+  const problemsWithImages = problemSetProblems.filter(p => p.imageUrl).length;
+  if (problemsWithImages === 0) {
+    showNotification("이미지가 있는 문제가 없습니다.", "warning");
+    return;
+  }
+
+  const currentTokenBalance = await getAcademyTokenBalance();
+  if (currentTokenBalance < problemsWithImages) {
+    showNotification(`토큰이 부족합니다. (현재: ${currentTokenBalance}개, 필요: ${problemsWithImages}개) 관리자에게 충전을 요청하세요.`, "error");
+    return;
+  }
+
+  // 토큰 사용 확인
+  const confirmUseTokens = confirm(`AI 해설 생성에 ${problemsWithImages}개의 토큰이 사용됩니다.\n현재 잔액: ${currentTokenBalance}개\n\n계속하시겠습니까?`);
+  if (!confirmUseTokens) {
     return;
   }
 
@@ -10522,6 +10723,18 @@ async function generateAIExplanations() {
       updatedAt: serverTimestamp()
     });
 
+    // 토큰 차감 - 실제 AI 사용량만큼
+    const totalAiUsed = aiUsedSources.gemini + aiUsedSources.gpt + aiUsedSources.claude;
+    if (totalAiUsed > 0) {
+      try {
+        const problemSetName = currentProblemSet?.title || currentProblemSetId;
+        await useAcademyToken(totalAiUsed, `AI 해설 생성 - ${problemSetName} (${totalAiUsed}문제)`);
+      } catch (tokenError) {
+        console.error("토큰 차감 실패:", tokenError);
+        // 토큰 차감 실패해도 해설은 이미 생성됨
+      }
+    }
+
     // Show success with AI usage stats
     let successMsg = "AI 해설이 생성되었습니다.";
     if (aiUsedSources.gemini > 0 || aiUsedSources.gpt > 0 || aiUsedSources.claude > 0) {
@@ -10529,7 +10742,7 @@ async function generateAIExplanations() {
       if (aiUsedSources.gemini > 0) aiStats.push(`Gemini: ${aiUsedSources.gemini}개`);
       if (aiUsedSources.gpt > 0) aiStats.push(`GPT-4o: ${aiUsedSources.gpt}개`);
       if (aiUsedSources.claude > 0) aiStats.push(`Claude: ${aiUsedSources.claude}개`);
-      successMsg += ` (${aiStats.join(", ")})`;
+      successMsg += ` (${aiStats.join(", ")}, 토큰 ${totalAiUsed}개 사용)`;
     }
     showNotification(successMsg, "success");
 
@@ -10589,3 +10802,153 @@ window.selectStudentAnswer = selectStudentAnswer;
 window.editExplanation = editExplanation;
 window.saveExplanationEdit = saveExplanationEdit;
 window.cancelExplanationEdit = cancelExplanationEdit;
+
+// =====================================================
+// 토큰 모달 함수들
+// =====================================================
+
+// 토큰 내역 모달 열기
+async function showTokenHistoryModal() {
+  const modal = document.getElementById("tokenHistoryModal");
+  const balanceEl = document.getElementById("tokenHistoryBalance");
+  const listEl = document.getElementById("tokenHistoryList");
+
+  modal.style.display = "flex";
+
+  // 현재 잔액 표시
+  const balance = await getAcademyTokenBalance();
+  balanceEl.textContent = balance;
+
+  // 토큰 내역 로드
+  listEl.innerHTML = '<div class="ghost" style="padding:20px; text-align:center;">로딩 중...</div>';
+
+  try {
+    const history = await getTokenHistory(myData.academyId, 30);
+
+    if (history.length === 0) {
+      listEl.innerHTML = '<div class="ghost" style="padding:20px; text-align:center;">토큰 사용 내역이 없습니다.</div>';
+      return;
+    }
+
+    listEl.innerHTML = history.map(item => {
+      const typeClass = item.type === 'use' ? 'type-use' :
+                        item.type === 'charge' ? 'type-charge' : 'type-welcome';
+      const typeLabel = item.type === 'use' ? '사용' :
+                        item.type === 'charge' ? '충전' : '🎁 무료';
+      const amountPrefix = item.amount > 0 ? '+' : '';
+      const timestamp = item.timestamp?.toDate ? item.timestamp.toDate() : new Date(item.timestamp);
+      const dateStr = timestamp.toLocaleString('ko-KR');
+
+      return `
+        <div class="token-history-item">
+          <div>
+            <span class="${typeClass}">${typeLabel}</span>
+            <span style="margin-left:8px;">${amountPrefix}${item.amount}개</span>
+            <div class="description">${escapeHtml(item.description || '')}</div>
+          </div>
+          <div class="date">${dateStr}</div>
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error("토큰 내역 로드 실패:", error);
+    listEl.innerHTML = '<div class="ghost" style="padding:20px; text-align:center; color:#ef4444;">내역을 불러올 수 없습니다.</div>';
+  }
+}
+window.showTokenHistoryModal = showTokenHistoryModal;
+
+// 토큰 내역 모달 닫기
+function closeTokenHistoryModal() {
+  document.getElementById("tokenHistoryModal").style.display = "none";
+}
+window.closeTokenHistoryModal = closeTokenHistoryModal;
+
+// 슈퍼관리자: 토큰 충전 모달 열기
+async function showTokenChargeModal() {
+  if (!isSuperAdmin()) {
+    showNotification("슈퍼관리자만 접근할 수 있습니다.", "error");
+    return;
+  }
+
+  const modal = document.getElementById("tokenChargeModal");
+  const academySelect = document.getElementById("chargeAcademySelect");
+  const academyInfo = document.getElementById("selectedAcademyInfo");
+
+  modal.style.display = "flex";
+  academyInfo.style.display = "none";
+
+  // 학원 목록 로드
+  academySelect.innerHTML = '<option value="">학원을 선택하세요</option>';
+
+  try {
+    const academies = await getAllAcademiesTokenStatus();
+    academies.forEach(academy => {
+      const option = document.createElement("option");
+      option.value = academy.id;
+      option.textContent = `${academy.name} (잔액: ${academy.tokenBalance || 0}개)`;
+      option.dataset.balance = academy.tokenBalance || 0;
+      academySelect.appendChild(option);
+    });
+  } catch (error) {
+    console.error("학원 목록 로드 실패:", error);
+    showNotification("학원 목록을 불러올 수 없습니다.", "error");
+  }
+
+  // 학원 선택 시 잔액 표시
+  academySelect.onchange = function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (this.value) {
+      document.getElementById("selectedAcademyBalance").textContent = selectedOption.dataset.balance || 0;
+      academyInfo.style.display = "block";
+    } else {
+      academyInfo.style.display = "none";
+    }
+  };
+}
+window.showTokenChargeModal = showTokenChargeModal;
+
+// 슈퍼관리자: 토큰 충전 모달 닫기
+function closeTokenChargeModal() {
+  document.getElementById("tokenChargeModal").style.display = "none";
+  document.getElementById("chargeAcademySelect").value = "";
+  document.getElementById("chargeTokenAmount").value = "";
+  document.getElementById("chargeTokenReason").value = "";
+  document.getElementById("selectedAcademyInfo").style.display = "none";
+}
+window.closeTokenChargeModal = closeTokenChargeModal;
+
+// 슈퍼관리자: 토큰 충전 실행
+async function executeTokenCharge() {
+  if (!isSuperAdmin()) {
+    showNotification("권한이 없습니다.", "error");
+    return;
+  }
+
+  const academyId = document.getElementById("chargeAcademySelect").value;
+  const amount = parseInt(document.getElementById("chargeTokenAmount").value);
+  const reason = document.getElementById("chargeTokenReason").value.trim() || "수동 충전";
+
+  if (!academyId) {
+    showNotification("학원을 선택하세요.", "warning");
+    return;
+  }
+  if (!amount || amount <= 0) {
+    showNotification("충전할 토큰 수를 입력하세요.", "warning");
+    return;
+  }
+
+  try {
+    const newBalance = await addAcademyTokens(academyId, amount, reason);
+    showNotification(`토큰 ${amount}개 충전 완료! (잔액: ${newBalance}개)`, "success");
+    closeTokenChargeModal();
+
+    // 충전 후 잔액 새로고침 (자신의 학원인 경우)
+    if (academyId === myData.academyId) {
+      updateTokenBalanceDisplay(newBalance);
+    }
+  } catch (error) {
+    console.error("토큰 충전 실패:", error);
+    showNotification("충전 실패: " + error.message, "error");
+  }
+}
+window.executeTokenCharge = executeTokenCharge;

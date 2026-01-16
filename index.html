@@ -281,9 +281,13 @@
           <div class="row" style="gap:12px; align-items:center;">
             <span class="kicker" id="adminAcademyName">학원명</span>
             <span class="academy-code-display">학원코드: <strong id="adminAcademyCode">-</strong></span>
+            <span class="token-balance-display" title="AI 해설 생성에 사용됩니다">🪙 AI 토큰: <strong id="tokenBalanceAdmin">0</strong>개</span>
           </div>
         </div>
-        <button class="btn" id="adminLogoutBtn">로그아웃</button>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <button class="btn btn-outline" id="tokenHistoryBtn" onclick="showTokenHistoryModal()" title="토큰 사용 내역">📊 토큰 내역</button>
+          <button class="btn" id="adminLogoutBtn">로그아웃</button>
+        </div>
       </div>
 
       <div class="admin-tabs">
@@ -1373,6 +1377,54 @@
       </div>
       <div style="display:flex; gap:8px; margin-top:16px; justify-content:flex-end;">
         <button id="closeNewChatModalBtn" class="btn" style="background:#e2e8f0; color:#333;">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 토큰 내역 모달 -->
+  <div id="tokenHistoryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="tokenHistoryModalTitle" style="display:none;">
+    <div class="modal-content" style="max-width:600px;">
+      <h3 id="tokenHistoryModalTitle" style="margin-bottom:16px;">🪙 토큰 사용 내역</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding:12px; background:linear-gradient(135deg, #fef3c7, #fde68a); border-radius:10px;">
+        <span style="font-weight:600; color:#92400e;">현재 잔액</span>
+        <span style="font-size:24px; font-weight:800; color:#d97706;"><span id="tokenHistoryBalance">0</span>개</span>
+      </div>
+      <div id="tokenHistoryList" style="max-height:400px; overflow-y:auto;">
+        <div class="ghost" style="padding:20px; text-align:center;">로딩 중...</div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:16px; justify-content:flex-end;">
+        <button onclick="closeTokenHistoryModal()" class="btn" style="background:#e2e8f0; color:#333;">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 슈퍼관리자 토큰 충전 모달 -->
+  <div id="tokenChargeModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="tokenChargeModalTitle" style="display:none;">
+    <div class="modal-content" style="max-width:500px;">
+      <h3 id="tokenChargeModalTitle" style="margin-bottom:16px;">💰 토큰 충전 (슈퍼관리자)</h3>
+      <div class="field">
+        <label>학원 선택</label>
+        <select id="chargeAcademySelect" class="input">
+          <option value="">학원을 선택하세요</option>
+        </select>
+      </div>
+      <div id="selectedAcademyInfo" style="display:none; padding:12px; background:#f8f9fa; border-radius:8px; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between;">
+          <span>현재 잔액:</span>
+          <strong id="selectedAcademyBalance">0</strong>개
+        </div>
+      </div>
+      <div class="field">
+        <label>충전할 토큰 수</label>
+        <input type="number" id="chargeTokenAmount" class="input" min="1" placeholder="예: 100" />
+      </div>
+      <div class="field">
+        <label>충전 사유 (메모)</label>
+        <input type="text" id="chargeTokenReason" class="input" placeholder="예: 계좌이체 확인 - 10,000원" />
+      </div>
+      <div style="display:flex; gap:8px; margin-top:16px; justify-content:flex-end;">
+        <button onclick="closeTokenChargeModal()" class="btn" style="background:#e2e8f0; color:#333;">취소</button>
+        <button onclick="executeTokenCharge()" class="btn" style="background:linear-gradient(135deg, #22c55e, #16a34a);">충전하기</button>
       </div>
     </div>
   </div>

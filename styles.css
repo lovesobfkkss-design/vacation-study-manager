@@ -296,6 +296,60 @@ textarea.input{ resize:vertical; font-family:inherit; }
   letter-spacing: 1px;
 }
 
+/* 토큰 잔액 표시 */
+.token-balance-display{
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #fcd34d;
+}
+.token-balance-display strong{
+  font-size: 16px;
+  color: #d97706;
+}
+
+/* 토큰 내역 아이템 */
+.token-history-item{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.token-history-item:last-child{
+  border-bottom: none;
+}
+.token-history-item .type-use{
+  color: #ef4444;
+  font-weight: 700;
+}
+.token-history-item .type-charge{
+  color: #22c55e;
+  font-weight: 700;
+}
+.token-history-item .type-welcome{
+  color: #8b5cf6;
+  font-weight: 700;
+}
+.token-history-item .description{
+  color: #6b7280;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.token-history-item .date{
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* 슈퍼관리자 토큰 관리 버튼 */
+.super-admin-token-btn{
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  color: #fff !important;
+}
+
 /* 랭킹 탭 */
 .ranking-tabs{
   display: flex;
