@@ -6,6 +6,7 @@
   <title>학습관리 시스템</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.6.0/kakao.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -13,8 +14,8 @@
   <div class="container" id="loginView" style="display:block">
     <div class="card" style="max-width:460px; margin:80px auto;">
       <h2 class="title" style="text-align:center">🎓 학습관리 시스템</h2>
-      <div class="field"><label>이메일</label><input id="loginEmail" class="input" type="email"/></div>
-      <div class="field"><label>비밀번호</label><input id="loginPassword" class="input" type="password"/></div>
+      <div class="field"><label for="loginEmail">이메일</label><input id="loginEmail" class="input" type="email"/></div>
+      <div class="field"><label for="loginPassword">비밀번호</label><input id="loginPassword" class="input" type="password"/></div>
       <button class="btn" style="width:100%; margin-top:18px" id="loginBtn">로그인</button>
       <div id="loginErr" class="error"></div>
       <div style="text-align:center; margin-top:16px;">
@@ -29,17 +30,17 @@
     <div class="card" style="max-width:600px; margin:80px auto;">
       <h2 class="title" style="text-align:center">🎓 회원가입</h2>
       <div class="row">
-        <div class="field"><label>이름</label><input id="suName" class="input" type="text"/></div>
-        <div class="field"><label>닉네임 (랭킹용)</label><input id="suNickname" class="input" type="text" placeholder="랭킹에 표시될 이름"/></div>
+        <div class="field"><label for="suName">이름</label><input id="suName" class="input" type="text"/></div>
+        <div class="field"><label for="suNickname">닉네임 (랭킹용)</label><input id="suNickname" class="input" type="text" placeholder="랭킹에 표시될 이름"/></div>
       </div>
       <div class="row">
-        <div class="field"><label>역할</label>
+        <div class="field"><label for="suRole">역할</label>
           <select id="suRole">
             <option value="student">학생</option>
             <option value="admin">관리자(선생님)</option>
           </select>
         </div>
-        <div class="field" id="gradeWrap"><label>학년</label>
+        <div class="field" id="gradeWrap"><label for="suGrade">학년</label>
           <select id="suGrade">
             <option value="">선택</option>
             <option>중1</option><option>중2</option><option>중3</option>
@@ -47,21 +48,21 @@
           </select>
         </div>
       </div>
-      <div class="field"><label>이메일</label><input id="suEmail" class="input" type="email"/></div>
+      <div class="field"><label for="suEmail">이메일</label><input id="suEmail" class="input" type="email"/></div>
       <div class="row">
-        <div class="field"><label>비밀번호</label><input id="suPw" class="input" type="password"/></div>
-        <div class="field"><label>비밀번호 확인</label><input id="suPw2" class="input" type="password"/></div>
+        <div class="field"><label for="suPw">비밀번호</label><input id="suPw" class="input" type="password"/></div>
+        <div class="field"><label for="suPw2">비밀번호 확인</label><input id="suPw2" class="input" type="password"/></div>
       </div>
-      <div class="field" id="parentEmailWrap"><label>학부모 이메일 (선택)</label>
+      <div class="field" id="parentEmailWrap"><label for="suParentEmail">학부모 이메일 (선택)</label>
         <input id="suParentEmail" class="input" type="email" placeholder="주간 리포트 수신용"/>
       </div>
       <!-- 학원 관련 필드 -->
       <div class="field" id="academyNameWrap" style="display:none;">
-        <label>학원 이름</label>
+        <label for="suAcademyName">학원 이름</label>
         <input id="suAcademyName" class="input" type="text" placeholder="예: 강한영어수학"/>
       </div>
       <div class="field" id="academyCodeWrap">
-        <label>학원 코드</label>
+        <label for="suAcademyCode">학원 코드</label>
         <input id="suAcademyCode" class="input" type="text" placeholder="선생님에게 받은 코드 입력"/>
       </div>
       <button class="btn" style="width:100%; margin-top:18px" id="signupBtn">회원가입</button>
@@ -79,6 +80,8 @@
     <div class="card">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <div>
+          <div class="kicker">학생</div>
+          <h1 id="studentNameLabel" style="margin:0 0 6px 0; font-size:28px;">학생 이름</h1>
           <div class="kicker">오늘</div>
           <h2 id="todayLabel">YYYY-MM-DD</h2>
         </div>
@@ -95,7 +98,24 @@
           <button class="btn" id="logoutBtn">로그아웃</button>
         </div>
       </div>
-      
+
+      <!-- 요청사항 버튼 -->
+      <div style="margin-top:16px; padding:12px; background:linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius:12px; border:1px solid #fcd34d;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="font-weight:600; color:#92400e;">🙋 요청:</span>
+          <button class="btn student-request-btn" data-request="추워요 🥶" style="padding:6px 12px; font-size:13px; background:#3b82f6;" aria-label="추워요">🥶 추워요</button>
+          <button class="btn student-request-btn" data-request="더워요 🥵" style="padding:6px 12px; font-size:13px; background:#ef4444;" aria-label="더워요">🥵 더워요</button>
+          <button class="btn student-request-btn" data-request="시끄러워요 🔊" style="padding:6px 12px; font-size:13px; background:#8b5cf6;" aria-label="시끄러워요">🔊 시끄러워요</button>
+          <button class="btn student-request-btn" data-request="화장실 🚻" style="padding:6px 12px; font-size:13px; background:#22a06b;" aria-label="화장실">🚻 화장실</button>
+          <button class="btn student-request-btn" data-request="질문 있어요 ✋" style="padding:6px 12px; font-size:13px; background:#f59e0b;" aria-label="질문 있어요">✋ 질문</button>
+          <div style="display:flex; gap:6px; margin-left:auto;">
+            <input type="text" id="customRequestInput" class="input" placeholder="직접 입력..." style="width:120px; padding:6px 10px; font-size:13px;">
+            <button class="btn" id="sendCustomRequestBtn" style="padding:6px 12px; font-size:13px;">전송</button>
+          </div>
+        </div>
+        <div id="requestSentMessage" style="display:none; margin-top:8px; color:#059669; font-size:13px; font-weight:500;">✅ 요청이 전송되었습니다!</div>
+      </div>
+
       <div class="row" style="justify-content:space-between; align-items:center; margin-top:16px;">
         <h3 class="title">학습 보기</h3>
         <div class="segment">
@@ -122,18 +142,18 @@
         <h3 class="title" style="margin-top:24px;">시험 결과</h3>
         <div class="row" style="gap:12px;">
           <div class="field" style="min-width:140px;">
-            <label>과목</label>
+            <label for="testSubject">과목</label>
             <select id="testSubject">
               <option>국어</option><option>영어</option><option>수학</option><option>과학</option><option>사회</option>
             </select>
           </div>
           <div class="field" style="min-width:120px;">
-            <label>점수</label>
-            <input id="testScore" class="input" type="number" min="0" max="100" placeholder="0~100"/>
+            <label for="testTotal">총 문제 수</label>
+            <input id="testTotal" class="input" type="number" min="1" placeholder="예: 10"/>
           </div>
           <div class="field" style="min-width:120px;">
-            <label>오답 개수</label>
-            <input id="testWrong" class="input" type="number" min="0" placeholder="0"/>
+            <label for="testCorrect">맞은 개수</label>
+            <input id="testCorrect" class="input" type="number" min="0" placeholder="예: 8"/>
           </div>
           <button class="btn" style="height:42px; align-self:flex-end;" id="saveTestBtn">저장</button>
         </div>
@@ -207,7 +227,7 @@
           </div>
           
           <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
-            <h4 style="color:var(--pri); margin:0 0 12px 0;">👨‍🏫 선생님 평가</h4>
+            <h4 style="color:var(--pri); margin:0 0 12px 0;">🤖 AI 종합 학습 평가</h4>
             <div id="reportTeacherEval"></div>
           </div>
           
@@ -268,9 +288,13 @@
 
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="students">📚 학생 관리</button>
-        <button class="admin-tab" data-tab="compare">📊 전체 비교</button>
-        <button class="admin-tab" data-tab="warning">⚠️ 위험군</button>
+        <button class="admin-tab" data-tab="adminComments">📋 전달사항</button>
+        <button class="admin-tab" data-tab="history">📅 날짜별 현황</button>
+        <button class="admin-tab" data-tab="stats">📊 통계분석</button>
         <button class="admin-tab" data-tab="registrations">👥 가입 현황</button>
+        <button class="admin-tab" data-tab="analysis">🔍 학생 분석</button>
+        <button class="admin-tab" data-tab="attendance">⏰ 출석 관리</button>
+        <button class="admin-tab" data-tab="wrongAnswer">📝 오답 분석</button>
       </div>
       
       <!-- 학생 관리 탭 -->
@@ -286,29 +310,131 @@
           <div id="checkRequestList"></div>
         </div>
 
+        <!-- 학생 요청사항 섹션 -->
+        <div id="studentRequestSection" style="margin-bottom:24px;">
+          <div class="row" style="align-items:center; margin-bottom:12px;">
+            <h3 class="title" style="margin:0;">
+              <span style="background:linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding:4px 12px; border-radius:8px; border:1px solid #fcd34d;">🙋 학생 요청</span>
+            </h3>
+            <span id="studentRequestCount" class="check-count" style="background:#f59e0b;">0</span>
+          </div>
+          <div id="studentRequestList">
+            <div class="ghost">요청이 없습니다.</div>
+          </div>
+        </div>
+
         <hr style="border:none; border-top:2px solid #eee; margin:20px 0;">
 
         <div class="kicker">학생 현황 및 관리</div>
+
+        <!-- 관리 유형 필터 탭 -->
+        <div id="managementTypeFilter" style="display:flex; gap:8px; margin:12px 0;">
+          <button class="btn management-filter-btn active" data-filter="all" style="padding:8px 16px; font-size:13px;">전체</button>
+          <button class="btn btn-outline management-filter-btn" data-filter="winter" style="padding:8px 16px; font-size:13px;">🏫 윈터관리</button>
+          <button class="btn btn-outline management-filter-btn" data-filter="external" style="padding:8px 16px; font-size:13px;">🏠 외부관리</button>
+        </div>
+
         <div id="adminList" style="margin-top:14px;"></div>
       </div>
-      
-      <!-- 전체 비교 탭 -->
-      <div id="adminTabCompare" class="admin-tab-content" style="display:none;">
-        <div class="stat-grid" id="compareStats"></div>
-        <div class="card" style="margin-top:16px; border:1px dashed #eee;">
-          <h3 class="title">학생별 진행률 비교</h3>
-          <canvas id="compareChartProgress" height="120"></canvas>
-        </div>
-        <div class="card" style="margin-top:16px; border:1px dashed #eee;">
-          <h3 class="title">학생별 공부시간 비교</h3>
-          <canvas id="compareChartTime" height="120"></canvas>
+
+      <!-- 관리자 전달사항 탭 -->
+      <div id="adminTabAdminComments" class="admin-tab-content" style="display:none;">
+        <div id="adminCommentSection">
+          <div class="row" style="align-items:center; margin-bottom:16px;">
+            <h3 class="title" style="margin:0;">
+              <span style="background:linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); padding:4px 12px; border-radius:8px; border:1px solid #a5b4fc;">📋 관리자 전달사항</span>
+            </h3>
+            <span id="adminCommentCount" class="check-count" style="background:#6366f1;">0</span>
+            <button class="btn" style="margin-left:auto; background:#6366f1; padding:6px 12px; font-size:13px;" id="addAdminCommentBtn">+ 전달사항 추가</button>
+          </div>
+          <div class="kicker" style="margin-bottom:12px;">다른 관리자에게 전달할 내용을 기록합니다. 확인 후 체크하면 목록에서 숨겨집니다.</div>
+          <div id="adminCommentList">
+            <div class="ghost">전달사항이 없습니다.</div>
+          </div>
         </div>
       </div>
-      
-      <!-- 위험군 탭 -->
-      <div id="adminTabWarning" class="admin-tab-content" style="display:none;">
-        <div class="kicker">진행률 40% 미만 또는 3일 이상 미학습 학생</div>
-        <div id="warningList" style="margin-top:14px;"></div>
+
+      <!-- 학생 통계분석 탭 -->
+      <div id="adminTabStats" class="admin-tab-content" style="display:none;">
+        <!-- 서브탭 -->
+        <div class="sub-tabs" id="statsSubTabs" style="margin-bottom:20px;">
+          <button class="sub-tab active" data-subtab="ranking">🏆 랭킹</button>
+          <button class="sub-tab" data-subtab="compare">📈 전체 비교</button>
+          <button class="sub-tab" data-subtab="warning">⚠️ 위험군</button>
+        </div>
+
+        <!-- 랭킹 서브탭 컨텐츠 -->
+        <div id="statsRankingContent" class="stats-sub-content">
+          <!-- 범위 선택 탭 -->
+          <div style="display:flex; gap:12px; margin-bottom:16px;">
+            <div style="flex:1;">
+              <div class="kicker" style="margin-bottom:8px;">범위</div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn" id="adminRankingScopeAcademy" style="flex:1; background:#667eea;">🏠 우리 학원</button>
+                <button class="btn btn-outline" id="adminRankingScopeNational" style="flex:1;">🌍 전국</button>
+              </div>
+            </div>
+            <div style="flex:1;">
+              <div class="kicker" style="margin-bottom:8px;">기간</div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn" id="adminRankingPeriodWeekly" style="flex:1; background:#22a06b;">📅 주간</button>
+                <button class="btn btn-outline" id="adminRankingPeriodTotal" style="flex:1;">📊 전체 기간</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 랭킹 정보 -->
+          <div class="card" style="background:#f8f9fb;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <h3 class="title" id="adminRankingTitle">🏆 우리 학원 주간 랭킹</h3>
+              <div class="kicker" id="adminRankingSubtitle">점수 = 공부시간(분) + 진행률 × 10</div>
+            </div>
+
+            <!-- 통계 요약 -->
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:20px;">
+              <div style="background:#fff; padding:16px; border-radius:12px; text-align:center;">
+                <div style="font-size:24px; font-weight:700; color:#667eea;" id="adminRankingTotalStudents">0</div>
+                <div class="ghost">참여 학생</div>
+              </div>
+              <div style="background:#fff; padding:16px; border-radius:12px; text-align:center;">
+                <div style="font-size:24px; font-weight:700; color:#22a06b;" id="adminRankingAvgTime">0분</div>
+                <div class="ghost">평균 학습시간</div>
+              </div>
+              <div style="background:#fff; padding:16px; border-radius:12px; text-align:center;">
+                <div style="font-size:24px; font-weight:700; color:#f59e0b;" id="adminRankingAvgProgress">0%</div>
+                <div class="ghost">평균 진행률</div>
+              </div>
+              <div style="background:#fff; padding:16px; border-radius:12px; text-align:center;">
+                <div style="font-size:24px; font-weight:700; color:#ef4444;" id="adminRankingTopScore">0</div>
+                <div class="ghost">최고 점수</div>
+              </div>
+            </div>
+
+            <!-- 랭킹 리스트 -->
+            <div id="adminRankingList">
+              <div class="ghost">랭킹을 불러오는 중...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 전체 비교 서브탭 컨텐츠 -->
+        <div id="statsCompareContent" class="stats-sub-content" style="display:none;">
+          <div class="stat-grid" id="compareStats"></div>
+          <div class="card" style="margin-top:16px; border:1px dashed #eee;">
+            <h3 class="title">학생별 진행률 비교</h3>
+            <canvas id="compareChartProgress" height="120"></canvas>
+          </div>
+          <div class="card" style="margin-top:16px; border:1px dashed #eee;">
+            <h3 class="title">학생별 공부시간 비교</h3>
+            <canvas id="compareChartTime" height="120"></canvas>
+          </div>
+        </div>
+
+        <!-- 위험군 서브탭 컨텐츠 -->
+        <div id="statsWarningContent" class="stats-sub-content" style="display:none;">
+          <div class="kicker">진행률 40% 미만 또는 3일 이상 미학습 학생</div>
+          <div id="warningList" style="margin-top:14px;"></div>
+        </div>
       </div>
 
       <!-- 가입 현황 탭 -->
@@ -338,10 +464,11 @@
                   <th>학년</th>
                   <th>이메일</th>
                   <th>가입일시</th>
+                  <th>관리</th>
                 </tr>
               </thead>
               <tbody id="registrationTableBody">
-                <tr><td colspan="4" class="empty-msg">학생 데이터를 불러오는 중...</td></tr>
+                <tr><td colspan="5" class="empty-msg">학생 데이터를 불러오는 중...</td></tr>
               </tbody>
             </table>
           </div>
@@ -367,22 +494,535 @@
           </div>
         </div>
       </div>
+
+      <!-- 학생 분석 탭 -->
+      <div id="adminTabAnalysis" class="admin-tab-content" style="display:none;">
+        <div style="display:grid; grid-template-columns:280px 1fr; gap:20px;">
+          <!-- 학생 목록 -->
+          <div style="background:#f8f9fb; padding:16px; border-radius:12px; max-height:600px; overflow-y:auto;">
+            <div class="kicker" style="margin-bottom:12px;">학생 선택</div>
+            <div id="analysisStudentList">
+              <div class="ghost">학생 목록을 불러오는 중...</div>
+            </div>
+          </div>
+
+          <!-- 분석 리포트 표시 -->
+          <div>
+            <div id="analysisSelectedStudent" style="margin-bottom:16px;">
+              <p class="ghost">왼쪽에서 학생을 선택하세요</p>
+            </div>
+
+            <!-- 리포트 타입 선택 버튼 -->
+            <div id="analysisTabButtons" style="display:none; margin-bottom:16px;">
+              <div style="display:flex; gap:8px;">
+                <button class="btn" id="analysisTabDailyBtn" style="flex:1; background:#22a06b;">📊 오늘 분석</button>
+                <button class="btn btn-outline" id="analysisTabWeeklyBtn" style="flex:1;">📊 주간 분석</button>
+              </div>
+            </div>
+
+            <!-- 인쇄 버튼 -->
+            <div id="analysisPrintSection" style="display:none; margin-bottom:16px; text-align:right;">
+              <button class="btn" id="printReportBtn" style="background:linear-gradient(135deg, #17a2b8 0%, #138496 100%);">🖨️ 리포트 인쇄</button>
+            </div>
+
+            <!-- 리포트 컨테이너 -->
+            <div id="analysisReportContainer" style="display:none;">
+              <div class="card printable-report" style="background:#f8f9fb; border:2px solid var(--pri);">
+                <!-- 인쇄용 헤더 -->
+                <div class="print-header">
+                  <div style="text-align:center; margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid #667eea;">
+                    <h2 style="color:#667eea; margin:0;">📊 학습 분석 리포트</h2>
+                    <div style="margin-top:8px; color:#666;" id="printStudentInfo"></div>
+                    <div style="margin-top:4px; color:#666;" id="printDateInfo"></div>
+                  </div>
+                </div>
+
+                <h3 class="title" id="analysisReportTitle">📊 학습 리포트</h3>
+                <div class="kicker" id="analysisReportRange">날짜 범위</div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px; border-left:4px solid #ff6b6b;">
+                  <h4 style="color:#ff6b6b; margin:0 0 12px 0;">🎯 약점 분석</h4>
+                  <div id="analysisReportWeakness"></div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
+                  <h4 style="color:var(--pri); margin:0 0 12px 0;">✨ 학습 report</h4>
+                  <div id="analysisReportSummary" class="ghost">데이터를 분석 중...</div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
+                  <h4 style="color:var(--pri); margin:0 0 12px 0;">📈 학습 통계</h4>
+                  <div class="stat-grid" id="analysisReportStats"></div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
+                  <h4 style="color:var(--pri); margin:0 0 12px 0;">📚 과목별 성취도</h4>
+                  <div id="analysisReportSubjects"></div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
+                  <h4 style="color:var(--pri); margin:0 0 12px 0;">⚖️ 과목별 학습 밸런스</h4>
+                  <div id="analysisReportBalance"></div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
+                  <h4 style="color:var(--pri); margin:0 0 12px 0;">⏰ 학습 루틴 분석</h4>
+                  <div id="analysisReportRoutine"></div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
+                  <h4 style="color:var(--pri); margin:0 0 12px 0;">🤖 AI 종합 학습 평가</h4>
+                  <div id="analysisReportTeacherEval"></div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px; border-left:4px solid #22a06b;">
+                  <h4 style="color:#22a06b; margin:0 0 12px 0;" id="analysisReportPlanTitle">📝 맞춤 학습 계획</h4>
+                  <div id="analysisReportPlan"></div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
+                  <h4 style="color:var(--pri); margin:0 0 12px 0;">💡 보완 제안</h4>
+                  <div id="analysisReportSuggestions"></div>
+                </div>
+
+                <div style="background:#fff; padding:20px; border-radius:12px; margin-top:16px;">
+                  <h4 style="color:var(--pri); margin:0 0 12px 0;">🌟 칭찬하는 점</h4>
+                  <div id="analysisReportStrengths"></div>
+                </div>
+
+                <!-- 인쇄용 푸터 -->
+                <div class="print-footer">
+                  <div style="text-align:center; margin-top:30px; padding-top:16px; border-top:1px solid #ddd; color:#888; font-size:12px;">
+                    학습관리 시스템 | 인쇄일: <span id="printDate"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 출석 관리 탭 -->
+      <div id="adminTabAttendance" class="admin-tab-content" style="display:none;">
+        <div style="display:grid; grid-template-columns:300px 1fr; gap:20px;">
+          <!-- 좌측: 학생 목록 -->
+          <div style="background:#f8f9fb; padding:16px; border-radius:12px; max-height:600px; overflow-y:auto;">
+            <div class="kicker" style="margin-bottom:12px;">학생 선택</div>
+            <div id="attendanceStudentList">
+              <div class="ghost">학생 목록을 불러오는 중...</div>
+            </div>
+          </div>
+          <!-- 우측: 지각 기록 폼 + 히스토리 -->
+          <div>
+            <div id="attendanceSelectedStudent" style="font-size:18px; font-weight:700; margin-bottom:16px; color:#666;">
+              👈 학생을 선택하세요
+            </div>
+            <!-- 날짜 선택 -->
+            <div id="attendanceDatePicker" style="margin-bottom:16px; display:none;">
+              <label for="attendanceDate" style="display:flex; align-items:center; gap:10px;">
+                <span class="kicker">날짜 선택:</span>
+                <input type="date" id="attendanceDate" class="input" style="max-width:200px;">
+              </label>
+            </div>
+            <!-- 지각 기록 폼 -->
+            <div id="attendanceForm" style="display:none;">
+              <div class="card" style="margin-bottom:20px;">
+                <h4 style="margin:0 0 16px 0; color:#ff6b6b;">⏰ 지각 기록</h4>
+                <div class="row">
+                  <div class="field">
+                    <label for="lateMinutesInput" class="kicker">지각 시간 (분)</label>
+                    <input type="number" id="lateMinutesInput" class="input" min="1" max="180" placeholder="예: 15">
+                  </div>
+                  <div class="field">
+                    <label for="lateReasonInput" class="kicker">사유</label>
+                    <input type="text" id="lateReasonInput" class="input" placeholder="예: 버스 지연, 병원 방문">
+                  </div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:16px;">
+                  <button class="btn" id="saveTardinessBtn">💾 지각 기록 저장</button>
+                  <button class="btn btn-outline" id="deleteTardinessBtn" style="display:none; color:#ff6b6b; border-color:#ff6b6b;">🗑️ 기록 삭제</button>
+                </div>
+                <div id="tardinessMessage" style="margin-top:10px;"></div>
+              </div>
+            </div>
+            <!-- 지각 히스토리 -->
+            <div id="attendanceHistory" style="margin-top:20px;">
+              <div class="card">
+                <h4 style="margin:0 0 16px 0;">📊 최근 지각 기록</h4>
+                <div id="attendanceHistoryList">
+                  <div class="ghost">학생을 선택하면 지각 기록이 표시됩니다.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오답 분석 탭 -->
+      <div id="adminTabWrongAnswer" class="admin-tab-content" style="display:none;">
+        <!-- 서브탭 -->
+        <div class="sub-tabs" id="wrongAnswerSubTabs">
+          <button class="sub-tab active" data-subtab="upload">📤 문제 등록</button>
+          <button class="sub-tab" data-subtab="input">✏️ 오답 입력</button>
+          <button class="sub-tab" data-subtab="result">📊 해설 보기</button>
+        </div>
+
+        <!-- Step 1: 문제 등록 -->
+        <div id="wrongAnswerUploadContent" class="wrong-answer-sub-content">
+
+          <!-- 🚀 빠른 등록 (PDF 일괄) -->
+          <div class="card" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; margin-bottom:20px;">
+            <h3 class="title" style="color:white;">🚀 빠른 등록 (PDF 일괄 업로드)</h3>
+            <div style="opacity:0.9; margin-bottom:16px;">PDF 파일 하나로 문제 세트 한번에 등록!</div>
+
+            <!-- 문제 세트 이름 -->
+            <div class="field" style="margin-bottom:12px;">
+              <label style="color:white;">문제 세트 이름</label>
+              <input id="quickProblemSetName" class="input" type="text" placeholder="예: 고1 모의고사 Day 1" style="background:rgba(255,255,255,0.95); color:#333;">
+            </div>
+
+            <!-- PDF 업로드 (드래그 앤 드롭 지원) -->
+            <div class="field" style="margin-bottom:12px;">
+              <label style="color:white;">📄 시험지 PDF 업로드 (클릭 또는 드래그)</label>
+              <div id="quickPdfUploadArea" style="border:2px dashed rgba(255,255,255,0.5); border-radius:12px; padding:24px; text-align:center; cursor:pointer; background:rgba(255,255,255,0.1); transition:all 0.2s;">
+                <input type="file" id="quickPdfInput" accept="application/pdf" style="display:none">
+                <div id="quickPdfStatus">
+                  <span style="font-size:40px;">📄</span>
+                  <p style="margin:8px 0 0 0; font-size:14px;">클릭하거나 PDF를 여기에 끌어다 놓으세요</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 문제 수 & DAY 설정 & 보기 수 -->
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
+              <div class="field">
+                <label style="color:white;">총 문제 수</label>
+                <input id="quickProblemCount" class="input" type="number" min="1" max="200" placeholder="예: 112" style="background:rgba(255,255,255,0.95); color:#333;">
+              </div>
+              <div class="field">
+                <label style="color:white;">DAY당 문제 수</label>
+                <input id="quickProblemsPerDay" class="input" type="number" min="1" max="50" placeholder="예: 8" style="background:rgba(255,255,255,0.95); color:#333;">
+                <div id="dayCalcResult" style="font-size:11px; opacity:0.9; margin-top:4px; color:#fef08a;"></div>
+              </div>
+              <div class="field">
+                <label style="color:white;">보기 수</label>
+                <select id="quickChoiceCount" class="input" style="background:rgba(255,255,255,0.95); color:#333;">
+                  <option value="4">4지선다</option>
+                  <option value="5" selected>5지선다</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 정답 입력 -->
+            <div class="field" style="margin-bottom:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="color:white; margin:0;">✅ 정답 입력 (1번부터 순서대로)</label>
+                <button type="button" id="autoDetectAnswersBtn" class="btn" style="padding:6px 12px; font-size:12px; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4);">
+                  🔍 PDF에서 자동 인식
+                </button>
+              </div>
+              <input id="quickAnswers" class="input" type="text" placeholder="예: 31425... 또는 ③①④②⑤..." style="background:rgba(255,255,255,0.95); color:#333; font-size:16px; letter-spacing:2px;">
+              <div style="font-size:11px; opacity:0.8; margin-top:4px;">숫자로 입력: 31425 = 1번③, 2번①, 3번④... / 또는 동그라미로: ③①④②⑤</div>
+              <div id="autoDetectStatus" style="display:none; margin-top:8px; padding:8px; background:rgba(255,255,255,0.15); border-radius:6px; font-size:12px;"></div>
+            </div>
+
+            <button class="btn" id="quickRegisterBtn" style="width:100%; background:white; color:#667eea; font-weight:700; padding:14px; font-size:15px;">
+              ⚡ 한번에 등록하기
+            </button>
+          </div>
+
+          <!-- 기존 상세 등록 (접힘) -->
+          <details style="margin-bottom:20px;">
+            <summary style="cursor:pointer; padding:12px; background:#f0f9ff; border-radius:8px; font-weight:600; color:#667eea;">
+              📝 상세 등록 (문제별 개별 입력)
+            </summary>
+          <div class="card" style="background:#f0f9ff; border:2px solid #bae6fd; margin-top:12px;">
+            <h3 class="title">📤 문제 등록</h3>
+            <div class="kicker" style="margin-bottom:16px;">문제 이미지를 업로드하고 정답/보기 정보를 입력하세요</div>
+
+            <!-- 문제 세트 이름 -->
+            <div class="field" style="margin-bottom:16px;">
+              <label for="problemSetName">문제 세트 이름</label>
+              <input id="problemSetName" class="input" type="text" placeholder="예: 영어 Day 1~3 단어 시험">
+            </div>
+
+            <!-- 문제 목록 -->
+            <div id="problemList" style="margin-bottom:16px;">
+              <!-- 문제 카드들이 여기에 추가됨 -->
+            </div>
+
+            <button class="btn" id="addProblemBtn" style="width:100%; background:#22a06b;">+ 문제 추가</button>
+
+            <div style="margin-top:20px; padding-top:20px; border-top:2px solid #bae6fd;">
+              <button class="btn" id="saveProblemSetBtn" style="width:100%; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:16px; font-size:16px;">
+                💾 문제 세트 저장
+              </button>
+            </div>
+          </div>
+          </details>
+
+          <!-- 저장된 문제 세트 목록 -->
+          <div class="card" style="margin-top:20px;">
+            <h3 class="title">📋 저장된 문제 세트</h3>
+            <div id="savedProblemSetList">
+              <div class="ghost">저장된 문제 세트가 없습니다.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: 오답 입력 -->
+        <div id="wrongAnswerInputContent" class="wrong-answer-sub-content" style="display:none;">
+          <div style="display:grid; grid-template-columns:300px 1fr; gap:20px;">
+            <!-- 좌측: 문제 세트 선택 -->
+            <div>
+              <div class="card" style="background:#f8f9fb;">
+                <h4 style="margin:0 0 12px 0;">📋 문제 세트 선택</h4>
+                <div id="problemSetSelectList">
+                  <div class="ghost">문제 세트를 불러오는 중...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 우측: 오답 입력 폼 -->
+            <div>
+              <div id="wrongAnswerInputForm" style="display:none;">
+                <div class="card" style="background:#fef3c7; border:2px solid #fcd34d;">
+                  <h3 class="title" id="selectedProblemSetTitle">선택된 문제 세트</h3>
+
+                  <!-- 학생 선택 -->
+                  <div class="field" style="margin-bottom:16px;">
+                    <label for="wrongAnswerStudentSelect">학생 선택</label>
+                    <select id="wrongAnswerStudentSelect" class="input">
+                      <option value="">학생을 선택하세요</option>
+                    </select>
+                  </div>
+
+                  <!-- DAY 선택 (DAY 구분이 있는 문제 세트만 표시) -->
+                  <div id="daySelectContainer" class="field" style="margin-bottom:16px; display:none;">
+                    <label for="wrongAnswerDaySelect">DAY 선택</label>
+                    <select id="wrongAnswerDaySelect" class="input" style="background:#fef08a;">
+                      <option value="">전체 문제</option>
+                    </select>
+                    <div id="dayRangeInfo" style="font-size:12px; color:#92400e; margin-top:4px;"></div>
+                  </div>
+
+                  <!-- 문제별 답안 입력 -->
+                  <div id="answerInputList">
+                    <!-- 문제별 입력 필드가 여기에 생성됨 -->
+                  </div>
+
+                  <button class="btn" id="saveWrongAnswersBtn" style="width:100%; margin-top:16px; background:#f59e0b;">
+                    💾 오답 저장
+                  </button>
+                </div>
+
+                <!-- 이미 입력된 학생 오답 목록 -->
+                <div class="card" style="margin-top:20px;">
+                  <h4 style="margin:0 0 12px 0;">✅ 입력된 학생 오답</h4>
+                  <div id="submittedAnswersList">
+                    <div class="ghost">아직 입력된 오답이 없습니다.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="wrongAnswerInputPlaceholder">
+                <div class="card" style="text-align:center; padding:60px 20px;">
+                  <div style="font-size:48px; margin-bottom:16px;">👈</div>
+                  <p class="ghost">왼쪽에서 문제 세트를 선택하세요</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: 해설 보기 -->
+        <div id="wrongAnswerResultContent" class="wrong-answer-sub-content" style="display:none;">
+          <div style="display:grid; grid-template-columns:300px 1fr; gap:20px;">
+            <!-- 좌측: 문제 세트 선택 -->
+            <div>
+              <div class="card" style="background:#f8f9fb;">
+                <h4 style="margin:0 0 12px 0;">📋 문제 세트 선택</h4>
+                <div id="resultProblemSetList">
+                  <div class="ghost">문제 세트를 불러오는 중...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 우측: 해설 표시 -->
+            <div>
+              <div id="wrongAnswerResultView" style="display:none;">
+                <!-- AI 설정 및 해설 생성 -->
+                <div class="card" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); border:none; margin-bottom:20px; color:white;">
+                  <h3 class="title" style="color:white;">🤖 AI 해설 생성</h3>
+                  <p style="font-size:13px; opacity:0.9; margin-bottom:16px;">Gemini, GPT, Claude를 비교하여 최적의 해설을 자동 생성합니다.</p>
+
+                  <!-- API 키 설정 토글 -->
+                  <details style="margin-bottom:16px;">
+                    <summary style="cursor:pointer; font-weight:600; padding:8px 0;">⚙️ API 키 설정</summary>
+                    <div style="background:rgba(255,255,255,0.1); padding:16px; border-radius:8px; margin-top:12px;">
+                      <div style="margin-bottom:12px;">
+                        <label style="display:block; font-size:12px; margin-bottom:4px;">Google Gemini API Key <span style="opacity:0.7;">(무료)</span></label>
+                        <input type="password" id="geminiApiKey" class="input" placeholder="AIzaSy..." style="background:rgba(255,255,255,0.9); color:#333;">
+                      </div>
+                      <div style="margin-bottom:12px;">
+                        <label style="display:block; font-size:12px; margin-bottom:4px;">OpenAI API Key</label>
+                        <input type="password" id="openaiApiKey" class="input" placeholder="sk-..." style="background:rgba(255,255,255,0.9); color:#333;">
+                      </div>
+                      <div style="margin-bottom:12px;">
+                        <label style="display:block; font-size:12px; margin-bottom:4px;">Anthropic Claude API Key</label>
+                        <input type="password" id="claudeApiKey" class="input" placeholder="sk-ant-..." style="background:rgba(255,255,255,0.9); color:#333;">
+                      </div>
+                      <button class="btn" id="saveApiKeysBtn" style="width:100%; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.3);">
+                        💾 API 키 저장
+                      </button>
+                    </div>
+                  </details>
+
+                  <!-- AI 상태 표시 -->
+                  <div id="aiStatusDisplay" style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+                    <div class="ai-status" id="geminiStatus">
+                      <span class="ai-icon">🔷</span>
+                      <span class="ai-name">Gemini</span>
+                      <span class="ai-state" data-state="unconfigured">미설정</span>
+                    </div>
+                    <div class="ai-status" id="gptStatus">
+                      <span class="ai-icon">🟢</span>
+                      <span class="ai-name">GPT-4o</span>
+                      <span class="ai-state" data-state="unconfigured">미설정</span>
+                    </div>
+                    <div class="ai-status" id="claudeStatus">
+                      <span class="ai-icon">🟠</span>
+                      <span class="ai-name">Claude</span>
+                      <span class="ai-state" data-state="unconfigured">미설정</span>
+                    </div>
+                  </div>
+
+                  <!-- 생성 버튼 -->
+                  <button class="btn" id="generateExplanationBtn" style="width:100%; background:white; color:#667eea; font-weight:700; padding:14px;">
+                    ✨ AI 해설 자동 생성
+                  </button>
+                  <div id="aiGenerationProgress" style="display:none; margin-top:12px;">
+                    <div class="progress-bar">
+                      <div class="progress-fill" id="aiProgressFill"></div>
+                    </div>
+                    <p class="progress-text" id="aiProgressText" style="font-size:12px; text-align:center; margin-top:8px; color:white;"></p>
+                  </div>
+                </div>
+
+                <!-- 오답 통계 요약 -->
+                <div class="card" style="background:linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border:2px solid #fcd34d; margin-bottom:20px;">
+                  <h3 class="title">📊 오답 통계</h3>
+                  <div id="wrongAnswerStats" class="stat-grid">
+                    <!-- 통계가 여기에 표시됨 -->
+                  </div>
+                </div>
+
+                <!-- 문제별 해설 -->
+                <div id="problemExplanationList">
+                  <!-- 문제별 해설 카드가 여기에 표시됨 -->
+                </div>
+              </div>
+
+              <div id="wrongAnswerResultPlaceholder">
+                <div class="card" style="text-align:center; padding:60px 20px;">
+                  <div style="font-size:48px; margin-bottom:16px;">👈</div>
+                  <p class="ghost">왼쪽에서 문제 세트를 선택하세요</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 학습 날짜별 현황 탭 -->
+      <div id="adminTabHistory" class="admin-tab-content" style="display:none;">
+        <div style="display:grid; grid-template-columns:280px 1fr; gap:20px;">
+          <!-- 학생 목록 -->
+          <div style="background:#f8f9fb; padding:16px; border-radius:12px; max-height:600px; overflow-y:auto;">
+            <div class="kicker" style="margin-bottom:12px;">학생 선택</div>
+            <div id="historyStudentList">
+              <div class="ghost">학생 목록을 불러오는 중...</div>
+            </div>
+          </div>
+
+          <!-- 학습 현황 표시 -->
+          <div>
+            <div id="historySelectedStudent" style="margin-bottom:16px;">
+              <p class="ghost">왼쪽에서 학생을 선택하세요</p>
+            </div>
+
+            <!-- 탭 버튼 -->
+            <div id="historyTabButtons" style="display:none; margin-bottom:16px;">
+              <div style="display:flex; gap:8px;">
+                <button class="btn" id="historyTabDailyBtn" style="flex:1; background:#eab308;">날짜별</button>
+                <button class="btn btn-outline" id="historyTabCumulativeBtn" style="flex:1;">누적</button>
+              </div>
+            </div>
+
+            <!-- 날짜별 현황 -->
+            <div id="historyDailySection" style="display:none;">
+              <div style="background:#fef9c3; padding:20px; border-radius:12px; border:1px solid #fde047;">
+                <div class="field" style="margin-bottom:12px;">
+                  <label for="historyDatePickerTab">날짜 선택</label>
+                  <input type="date" id="historyDatePickerTab" class="input">
+                </div>
+                <div id="historyDailyDataTab">
+                  <p class="ghost">날짜를 선택하세요</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 누적 현황 -->
+            <div id="historyCumulativeSection" style="display:none;">
+              <div style="background:#ecfdf5; padding:20px; border-radius:12px; border:1px solid #a7f3d0;">
+                <h3 class="title" style="margin-bottom:16px;">📈 누적 학습 현황</h3>
+                <div id="historyCumulativeDataTab">
+                  <p class="ghost">누적 데이터를 불러오는 중...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- 학생 상세 모달 -->
-  <div id="studentModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; overflow-y:auto;">
+  <div id="studentModal" role="dialog" aria-modal="true" aria-labelledby="modalStudentName" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; overflow-y:auto;">
     <div class="container" style="padding:40px 24px;">
       <div class="card" style="max-width:900px; margin:0 auto;">
         <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:20px;">
           <h2 class="title" id="modalStudentName">학생 이름</h2>
           <button class="btn btn-outline" id="closeModalBtn">닫기</button>
         </div>
-        
+
+        <!-- 관리 유형 선택 -->
+        <div style="background:#e0f2fe; padding:14px 20px; border-radius:12px; margin-bottom:20px; border:1px solid #7dd3fc;">
+          <div class="row" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-weight:600; font-size:14px;">📋 관리 유형:</span>
+              <span id="modalManagementTypeBadge" class="badge" style="font-size:13px;"></span>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn management-type-btn" data-type="winter" style="padding:8px 16px; font-size:13px;">🏫 윈터관리</button>
+              <button class="btn btn-outline management-type-btn" data-type="external" style="padding:8px 16px; font-size:13px;">🏠 외부관리</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 오늘의 과제 목록 -->
+        <div style="background:#f0f9ff; padding:20px; border-radius:12px; margin-bottom:20px; border:1px solid #bae6fd;">
+          <h3 class="title">📋 오늘의 과제 목록</h3>
+          <div id="modalTaskList" style="margin-top:12px;">
+            <div class="ghost">과제를 불러오는 중...</div>
+          </div>
+        </div>
+
         <!-- 상담 메모 -->
         <div style="background:#f8f9fb; padding:20px; border-radius:12px; margin-bottom:20px;">
           <h3 class="title">💬 상담 메모</h3>
           <div class="field">
+            <label for="counselMemo" class="sr-only">상담 메모</label>
             <textarea id="counselMemo" class="input" rows="3" placeholder="상담 내용을 입력하세요..."></textarea>
           </div>
           <button class="btn" style="width:100%; margin-top:8px;" id="saveCounselBtn">메모 저장</button>
@@ -394,7 +1034,7 @@
           <h3 class="title">오늘의 평가 (<span id="modalTodayDate"></span>)</h3>
           <div class="row" style="gap:12px; margin-top:12px;">
             <div class="field">
-              <label>집중력</label>
+              <label for="evalFocus">집중력</label>
               <select id="evalFocus">
                 <option value="">선택</option>
                 <option value="상">상 ⭐⭐⭐</option>
@@ -403,7 +1043,7 @@
               </select>
             </div>
             <div class="field">
-              <label>숙제 완성도</label>
+              <label for="evalHomework">숙제 완성도</label>
               <select id="evalHomework">
                 <option value="">선택</option>
                 <option value="상">상 ⭐⭐⭐</option>
@@ -412,7 +1052,7 @@
               </select>
             </div>
             <div class="field">
-              <label>태도</label>
+              <label for="evalAttitude">태도</label>
               <select id="evalAttitude">
                 <option value="">선택</option>
                 <option value="상">상 ⭐⭐⭐</option>
@@ -421,7 +1061,7 @@
               </select>
             </div>
             <div class="field">
-              <label>이해도</label>
+              <label for="evalUnderstanding">이해도</label>
               <select id="evalUnderstanding">
                 <option value="">선택</option>
                 <option value="상">상 ⭐⭐⭐</option>
@@ -431,7 +1071,7 @@
             </div>
           </div>
           <div class="field" style="margin-top:12px;">
-            <label>메모</label>
+            <label for="evalMemo">메모</label>
             <textarea id="evalMemo" class="input" rows="2" placeholder="오늘의 특이사항이나 코멘트를 입력하세요..."></textarea>
           </div>
           <button class="btn" style="width:100%; margin-top:12px;" id="saveEvalBtn">평가 저장</button>
@@ -443,7 +1083,7 @@
           <h3 class="title">⚠️ 경고 알림</h3>
           <div class="row" style="gap:12px; margin-top:12px;">
             <div class="field" style="flex:1;">
-              <label>경고 메시지</label>
+              <label for="warningMessageSelect">경고 메시지</label>
               <select id="warningMessageSelect" class="input">
                 <option value="멍때리지 말고 집중!">멍때리지 말고 집중!</option>
                 <option value="지금 뭐하니? 빨리 공부해!">지금 뭐하니? 빨리 공부해!</option>
@@ -454,6 +1094,7 @@
             </div>
           </div>
           <div class="field" id="customWarningWrap" style="display:none; margin-top:8px;">
+            <label for="customWarningInput" class="sr-only">직접 입력 경고 메시지</label>
             <input id="customWarningInput" class="input" placeholder="직접 경고 메시지를 입력하세요"/>
           </div>
           <button class="btn" style="width:100%; margin-top:12px; background:linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);" id="sendWarningBtn">⚠️ 경고 알림 보내기</button>
@@ -478,35 +1119,261 @@
           <h3 class="title">📝 학습 지시 추가</h3>
           <div class="row" style="gap:12px; margin-top:12px;">
             <div class="field" style="min-width:140px;">
-              <label>과목</label>
+              <label for="taskSubject">과목</label>
               <input id="taskSubject" class="input" placeholder="예: 국어, 영어"/>
             </div>
             <div class="field" style="flex:1;">
-              <label>항목 내용</label>
+              <label for="adminTaskTitle">항목 내용</label>
               <input id="adminTaskTitle" class="input" placeholder="예: 인강 3개 듣기"/>
             </div>
             <button class="btn" style="height:42px; align-self:flex-end;" id="addTaskToStudentBtn">추가</button>
           </div>
         </div>
 
-        <!-- 학부모 메일 발송 -->
+        <!-- 학생이 기록한 시험 결과 -->
         <div style="margin-top:24px; padding-top:24px; border-top:2px solid #eee;">
-          <h3 class="title">📧 학부모 주간 리포트</h3>
+          <h3 class="title">📝 학생이 기록한 시험</h3>
+          <p class="kicker" style="margin-bottom:8px;">학생이 직접 입력한 시험 결과입니다</p>
+          <div id="modalStudentTestList" style="margin-top:12px; max-height:200px; overflow-y:auto;">
+            <p class="ghost">학생이 기록한 시험이 없습니다.</p>
+          </div>
+        </div>
+
+        <!-- 관리자가 기록한 시험 결과 -->
+        <div style="margin-top:24px; padding-top:24px; border-top:2px solid #eee;">
+          <h3 class="title">📋 관리자가 기록한 시험</h3>
+          <p class="kicker" style="margin-bottom:8px;">재시험을 추가하려면 해당 시험의 "재시험" 버튼을 클릭하세요</p>
+          <div id="modalAdminTestList" style="margin-top:12px; max-height:200px; overflow-y:auto;">
+            <p class="ghost">관리자가 기록한 시험이 없습니다.</p>
+          </div>
+        </div>
+
+        <!-- 시험 결과 입력 -->
+        <div style="margin-top:24px; padding-top:24px; border-top:2px solid #eee;">
+          <h3 class="title">📊 시험 결과 입력</h3>
+
+          <!-- 시험 범위 -->
+          <div style="background:#eef2ff; padding:16px; border-radius:10px; margin-top:12px; border:1px solid #c7d2fe;">
+            <div style="font-weight:700; color:#4338ca; margin-bottom:10px;">🧾 시험 범위</div>
+            <div class="field" style="margin-bottom:10px;">
+              <label for="modalEngVocabRange">영단어 시험 범위</label>
+              <textarea id="modalEngVocabRange" class="input" rows="2" placeholder="예: Day 1~3, 단어 50개"></textarea>
+            </div>
+            <div class="field">
+              <label for="modalKorVocabRange">국어 어휘 시험 범위</label>
+              <textarea id="modalKorVocabRange" class="input" rows="2" placeholder="예: 교재 20~30쪽, 사자성어 30개"></textarea>
+            </div>
+            <button class="btn" style="width:100%; margin-top:10px; background:#4338ca;" id="saveVocabRangeBtn">범위 저장</button>
+          </div>
+
+          <!-- 영단어 시험 -->
+          <div style="background:#ecfdf5; padding:16px; border-radius:10px; margin-top:12px; border:1px solid #a7f3d0;">
+            <div style="font-weight:700; color:#059669; margin-bottom:10px;">🔤 영단어 시험</div>
+            <div class="row" style="gap:12px;">
+              <div class="field">
+                <label for="modalEngVocabTotal">총 문항 수</label>
+                <input type="number" id="modalEngVocabTotal" class="input" min="1" placeholder="50">
+              </div>
+              <div class="field">
+                <label for="modalEngVocabCorrect">맞은 개수</label>
+                <input type="number" id="modalEngVocabCorrect" class="input" min="0" placeholder="45">
+              </div>
+              <div class="field">
+                <label for="modalEngVocabScore">점수 (%)</label>
+                <input type="number" id="modalEngVocabScore" class="input" min="0" max="100" placeholder="90" readonly>
+              </div>
+              <button class="btn" style="height:42px; align-self:flex-end; background:#059669;" id="saveEngVocabBtn">저장</button>
+            </div>
+          </div>
+
+          <!-- 국어 어휘시험 -->
+          <div style="background:#fef3c7; padding:16px; border-radius:10px; margin-top:12px; border:1px solid #fcd34d;">
+            <div style="font-weight:700; color:#b45309; margin-bottom:10px;">📖 국어 어휘시험</div>
+            <div class="row" style="gap:12px;">
+              <div class="field">
+                <label for="modalKorVocabTotal">총 문항 수</label>
+                <input type="number" id="modalKorVocabTotal" class="input" min="1" placeholder="50">
+              </div>
+              <div class="field">
+                <label for="modalKorVocabCorrect">맞은 개수</label>
+                <input type="number" id="modalKorVocabCorrect" class="input" min="0" placeholder="45">
+              </div>
+              <div class="field">
+                <label for="modalKorVocabScore">점수 (%)</label>
+                <input type="number" id="modalKorVocabScore" class="input" min="0" max="100" placeholder="90" readonly>
+              </div>
+              <button class="btn" style="height:42px; align-self:flex-end; background:#b45309;" id="saveKorVocabBtn">저장</button>
+            </div>
+          </div>
+
+          <!-- 기타 시험 -->
+          <div style="background:#f8f9fb; padding:16px; border-radius:10px; margin-top:12px;">
+            <div style="font-weight:700; color:#666; margin-bottom:10px;">📝 기타 시험</div>
+            <div class="row" style="gap:12px;">
+              <div class="field">
+                <label for="modalTestSubject">과목</label>
+                <select id="modalTestSubject">
+                  <option>수학</option>
+                  <option>과학</option>
+                  <option>사회</option>
+                  <option>국어</option>
+                  <option>영어</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="modalTestTotal">총 문항</label>
+                <input type="number" id="modalTestTotal" class="input" min="1" placeholder="20">
+              </div>
+              <div class="field">
+                <label for="modalTestCorrect">맞은 개수</label>
+                <input type="number" id="modalTestCorrect" class="input" min="0" placeholder="17">
+              </div>
+              <div class="field">
+                <label for="modalTestScore">점수 (%)</label>
+                <input type="number" id="modalTestScore" class="input" min="0" max="100" placeholder="85" readonly>
+              </div>
+              <button class="btn" style="height:42px; align-self:flex-end;" id="saveModalTestBtn">저장</button>
+            </div>
+          </div>
+
+          <div id="modalTestSuccess" class="success" style="margin-top:8px;"></div>
+        </div>
+
+        <!-- 학습 요약 공유 -->
+        <div style="margin-top:24px; padding-top:24px; border-top:2px solid #eee;">
+          <h3 class="title">📨 학습 리포트 공유</h3>
           <p class="kicker" style="margin-bottom:12px;">학부모 이메일: <strong id="modalParentEmail">-</strong></p>
-          <button class="btn btn-parent-email" style="width:100%;" id="sendParentEmailBtn">📧 학부모에게 주간 리포트 보내기</button>
+
+          <!-- 주간 탐색 UI -->
+          <div style="background:#f0f9ff; padding:16px; border-radius:12px; margin-bottom:16px; border:1px solid #bae6fd;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+              <button class="btn btn-outline" id="prevWeekBtn" style="padding:8px 16px;">◀ 이전주</button>
+              <div style="text-align:center;">
+                <div style="font-weight:700; font-size:15px;" id="adminWeekRangeLabel">이번주</div>
+                <div class="kicker" id="adminWeekRangeDates">-</div>
+              </div>
+              <button class="btn btn-outline" id="nextWeekBtn" style="padding:8px 16px;">다음주 ▶</button>
+            </div>
+
+            <!-- 주간 리포트 미리보기 -->
+            <div id="adminWeeklyReportPreview" style="background:#fff; padding:16px; border-radius:8px; max-height:400px; overflow-y:auto;">
+              <div class="ghost" style="text-align:center;">주간 리포트를 불러오는 중...</div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px;">
+            <button class="btn" style="flex:1;" id="sendTodayEmailBtn">📨 오늘 요약</button>
+            <button class="btn btn-parent-email" style="flex:1;" id="sendWeeklyEmailBtn">📊 주간 리포트</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
   <!-- 학생용 경고 팝업 모달 -->
-  <div id="warningModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
+  <div id="warningModal" role="alertdialog" aria-modal="true" aria-labelledby="warningModalTitle" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
     <div style="background:#fff; border-radius:20px; padding:40px; max-width:400px; text-align:center; animation: warningShake 0.5s ease-in-out;">
-      <div style="font-size:80px; margin-bottom:20px;">⚠️</div>
-      <h2 style="color:#ff6b6b; margin:0 0 16px 0;">선생님 경고!</h2>
+      <div style="font-size:80px; margin-bottom:20px;" aria-hidden="true">⚠️</div>
+      <h2 id="warningModalTitle" style="color:#ff6b6b; margin:0 0 16px 0;">선생님 경고!</h2>
       <p id="warningMessageText" style="font-size:18px; color:#333; margin-bottom:24px; line-height:1.6;"></p>
       <p style="color:#666; font-size:13px; margin-bottom:20px;">보낸 시간: <span id="warningTime"></span></p>
       <button class="btn" style="width:100%; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);" id="closeWarningBtn">확인했습니다</button>
+    </div>
+  </div>
+
+  <!-- 관리자 전달사항 추가 모달 -->
+  <div id="addCommentModal" role="dialog" aria-modal="true" aria-labelledby="addCommentModalTitle" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1001; overflow-y:auto;">
+    <div class="container" style="padding:40px 24px;">
+      <div class="card" style="max-width:500px; margin:80px auto;">
+        <h2 class="title" id="addCommentModalTitle" style="margin-bottom:20px;">📋 전달사항 추가</h2>
+
+        <div class="field">
+          <label for="commentStudentSelect">학생 선택</label>
+          <select id="commentStudentSelect" class="input">
+            <option value="">학생을 선택하세요</option>
+          </select>
+        </div>
+
+        <div class="field" style="margin-top:12px;">
+          <label for="commentMessageInput">전달사항 내용</label>
+          <textarea id="commentMessageInput" class="input" rows="4" placeholder="다음 근무 선생님께 전달할 내용을 입력하세요..."></textarea>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:20px;">
+          <button class="btn" style="flex:1; background:#6366f1;" id="saveCommentBtn">저장</button>
+          <button class="btn btn-outline" style="flex:1;" id="closeCommentModalBtn">취소</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 채팅 플로팅 버튼 -->
+  <button id="chatFloatingBtn" class="chat-floating-btn" style="display:none;" aria-label="채팅">
+    💬
+    <span id="chatUnreadBadge" class="chat-unread-badge" style="display:none;">0</span>
+  </button>
+
+  <!-- 학생용 채팅 팝업 -->
+  <div id="studentChatPopup" class="chat-popup">
+    <div class="chat-header">
+      <span>💬 선생님과 대화</span>
+      <button id="closeStudentChatBtn" class="chat-close-btn" aria-label="채팅 닫기">✕</button>
+    </div>
+    <div id="studentChatMessages" class="chat-messages">
+      <div class="ghost" style="text-align:center; padding:40px;">메시지가 없습니다.<br>선생님께 메시지를 보내보세요!</div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" id="studentChatInput" class="input" placeholder="메시지 입력..." style="flex:1;" aria-label="채팅 메시지 입력" />
+      <button id="sendStudentChatBtn" class="btn">전송</button>
+    </div>
+  </div>
+
+  <!-- 관리자용 채팅 팝업 -->
+  <div id="adminChatPopup" class="admin-chat-popup">
+    <div class="chat-header">
+      <span>💬 학생 채팅</span>
+      <button id="closeAdminChatBtn" class="chat-close-btn" aria-label="채팅 닫기">✕</button>
+    </div>
+    <div class="admin-chat-body">
+      <div id="chatStudentList" class="chat-student-list">
+        <button id="newChatBtn" class="new-chat-btn">+ 새 대화</button>
+        <div id="chatStudentListContent">
+          <div class="ghost" style="padding:20px; text-align:center;">채팅 내역이 없습니다.</div>
+        </div>
+      </div>
+      <div class="chat-main">
+        <div id="adminChatStudentName" class="chat-student-name" style="display:none;">학생 선택</div>
+        <div id="adminChatMessages" class="chat-messages">
+          <div class="ghost" style="text-align:center; padding:40px;">학생을 선택하세요</div>
+        </div>
+        <div class="chat-input-area">
+          <input type="text" id="adminChatInput" class="input" placeholder="메시지 입력..." style="flex:1;" aria-label="채팅 메시지 입력" disabled />
+          <button id="sendAdminChatBtn" class="btn" disabled>전송</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 채팅 토스트 알림 -->
+  <div id="chatToast" class="chat-toast" role="alert" aria-live="polite">
+    <div class="chat-toast-content">
+      <div class="chat-toast-title">💬 새 메시지</div>
+      <div id="chatToastBody" class="chat-toast-body"></div>
+    </div>
+    <button id="chatToastCloseBtn" class="chat-toast-close" aria-label="알림 닫기">✕</button>
+  </div>
+
+  <!-- 새 채팅 학생 선택 모달 -->
+  <div id="newChatModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="newChatModalTitle" style="display:none;">
+    <div class="modal-content" style="max-width:400px;">
+      <h3 id="newChatModalTitle" style="margin-bottom:16px;">💬 새 대화 시작</h3>
+      <p style="color:#666; margin-bottom:12px;">대화할 학생을 선택하세요</p>
+      <div id="newChatStudentList" style="max-height:300px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
+        <div class="ghost" style="padding:20px; text-align:center;">로딩 중...</div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:16px; justify-content:flex-end;">
+        <button id="closeNewChatModalBtn" class="btn" style="background:#e2e8f0; color:#333;">취소</button>
+      </div>
     </div>
   </div>
 

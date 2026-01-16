@@ -28,6 +28,28 @@ body{
 .segment{ display:flex; gap:8px; }
 .segment button{ border:none; padding:6px 12px; border-radius:999px; cursor:pointer; background:#f1f2f6; }
 .segment .active{ background:var(--pri); color:#fff; }
+
+/* 모달 스타일 */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-height: 80vh;
+  overflow-y: auto;
+}
 .progress{ height:28px; background:#eee; border-radius:16px; overflow:hidden; margin-bottom:10px; }
 .progress>.fill{
   height:100%; width:0%; display:flex; align-items:center; justify-content:center;
@@ -94,6 +116,22 @@ textarea.input{ resize:vertical; font-family:inherit; }
 .report-item{
   padding:12px; background:#f8f9fb; border-radius:8px; margin-bottom:8px;
   line-height:1.6;
+}
+
+/* 관리자 전달사항 스타일 */
+.admin-comment-item{
+  display:flex; align-items:flex-start; gap:12px;
+  padding:14px; background:linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  border-radius:10px; margin-bottom:8px; border:1px solid #a5b4fc;
+}
+.admin-comment-item .student-info{
+  font-weight:600; color:#4338ca;
+}
+.admin-comment-item .comment-message{
+  margin-top:6px; color:#3730a3; line-height:1.5;
+}
+.admin-comment-item .comment-meta{
+  font-size:11px; color:#6366f1; margin-top:6px;
 }
 
 /* 점검 요청 관련 스타일 */
@@ -198,6 +236,60 @@ textarea.input{ resize:vertical; font-family:inherit; }
   padding: 6px 14px;
   border-radius: 8px;
   font-size: 13px;
+}
+
+/* 학생 요청 토스트 알림 */
+#studentRequestToast{
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%) translateY(20px);
+  background: #fff7ed;
+  border: 1px solid #f59e0b;
+  border-radius: 16px;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  padding: 16px 18px;
+  min-width: 280px;
+  max-width: 520px;
+  width: calc(100% - 32px);
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+#studentRequestToast.student-request-toast--show{
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.student-request-toast__title{
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 6px;
+}
+.student-request-toast__body{
+  color: #7c2d12;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.student-request-toast__actions{
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+.student-request-toast__actions button{
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.student-request-toast__actions #studentRequestToastViewBtn{
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  color: #fff;
+}
+.student-request-toast__actions #studentRequestToastCloseBtn{
+  background: #fde68a;
+  color: #78350f;
 }
 .academy-code-display strong{
   font-size: 15px;
@@ -449,4 +541,1540 @@ textarea.input{ resize:vertical; font-family:inherit; }
 }
 .accordion-table thead{
   background: linear-gradient(135deg, #5a6fd6 0%, #6b5b95 100%);
+}
+
+/* 학생 카드 타이머 인라인 */
+.timer-inline{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Courier New', monospace;
+  min-width: 120px;
+}
+.timer-inline .timer-display{
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+}
+.timer-inline .timer-status{
+  font-size: 14px;
+}
+
+/* 학생 카드 버튼 그룹 */
+.student-card .btn-group{
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.student-card .btn-timer{
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.student-card .btn-timer:hover{
+  transform: scale(1.1);
+}
+.student-card .btn-timer.start{
+  background: #22a06b;
+  color: #fff;
+}
+.student-card .btn-timer.pause{
+  background: #ff6b6b;
+  color: #fff;
+}
+.student-card .btn-timer.reset{
+  background: #eee;
+  color: #333;
+}
+
+/* 학생 삭제 버튼 */
+.btn-delete-student{
+  background: transparent;
+  border: 1px solid #ff6b6b;
+  color: #ff6b6b;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+.btn-delete-student:hover{
+  background: #ff6b6b;
+  color: #fff;
+}
+
+/* 학생 카드 레이아웃 개선 */
+.student-card .student-info{
+  flex: 1;
+  min-width: 150px;
+}
+.student-card .student-controls{
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ========== 프린트 스타일 ========== */
+/* 인쇄용 헤더/푸터 - 기본 숨김 */
+.print-header, .print-footer { display: none; }
+
+@media print {
+  /* 숨길 요소들 */
+  .admin-tabs,
+  #analysisStudentList,
+  #analysisSelectedStudent,
+  #analysisTabButtons,
+  #analysisPrintSection,
+  .btn,
+  button,
+  .segment,
+  .tabs,
+  nav,
+  header,
+  footer { display: none !important; }
+
+  /* 인쇄용 헤더/푸터 표시 */
+  .print-header, .print-footer { display: block !important; }
+
+  /* 바디 배경 제거 */
+  body {
+    background: white !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 레이아웃 최적화 */
+  .container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 10px !important;
+  }
+
+  /* 통계 그리드 최적화 */
+  .stat-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .stat-card {
+    padding: 10px !important;
+    border: 1px solid #ddd !important;
+    page-break-inside: avoid;
+  }
+
+  /* 리포트 아이템 페이지 나눔 방지 */
+  .report-item,
+  .ai-section,
+  [class*="report"] {
+    page-break-inside: avoid;
+  }
+
+  /* 분석 리포트 컨테이너 전체 너비 */
+  #analysisReportContainer {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* 그리드 레이아웃 제거 - 리포트만 표시 */
+  #adminTabAnalysis > div {
+    display: block !important;
+  }
+
+  #adminTabAnalysis > div > div:first-child {
+    display: none !important;
+  }
+
+  /* 프린트 헤더 스타일 */
+  .print-header {
+    text-align: center;
+    border-bottom: 2px solid #333;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+  }
+
+  .print-header h2 {
+    margin: 0 0 8px 0;
+    color: #333;
+  }
+
+  .print-header p {
+    margin: 0;
+    color: #666;
+    font-size: 14px;
+  }
+
+  /* 프린트 푸터 스타일 */
+  .print-footer {
+    text-align: center;
+    border-top: 1px solid #ddd;
+    padding-top: 15px;
+    margin-top: 30px;
+    font-size: 12px;
+    color: #666;
+  }
+
+  /* 페이지 설정 */
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  /* 리포트 카드 스타일 */
+  .report-card {
+    border: 1px solid #ddd !important;
+    margin-bottom: 15px;
+  }
+
+  /* 차트 숨기기 (프린트에서 제대로 표시 안됨) */
+  canvas {
+    display: none !important;
+  }
+}
+
+/* ========== 지각 관리 스타일 ========== */
+/* 지각 기록 카드 */
+.tardiness-item {
+  background: #fff5f5;
+  border-left: 4px solid #ff6b6b;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.tardiness-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.2);
+}
+
+.tardiness-item .date {
+  font-weight: 700;
+  color: #333;
+}
+
+.tardiness-item .minutes {
+  color: #ff6b6b;
+  font-weight: 700;
+}
+
+.tardiness-item .reason {
+  color: #666;
+  font-size: 14px;
+}
+
+/* 지각 없음 표시 */
+.no-tardiness {
+  background: #f0fff4;
+  border-left: 4px solid #22a06b;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+/* 출석 관리 탭 학생 선택 스타일 */
+#attendanceStudentList .student-item:hover {
+  border-color: #667eea !important;
+  background: #f8f9ff !important;
+}
+
+/* ==================== 채팅 시스템 스타일 ==================== */
+
+/* 플로팅 채팅 버튼 */
+.chat-floating-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+  z-index: 998;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.chat-floating-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+.chat-unread-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ff6b6b;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  border-radius: 10px;
+  padding: 0 6px;
+}
+
+/* 채팅 팝업 공통 */
+.chat-popup, .admin-chat-popup {
+  position: fixed;
+  bottom: 90px;
+  right: 24px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  display: none;
+  flex-direction: column;
+  z-index: 999;
+  overflow: hidden;
+}
+.chat-popup.open, .admin-chat-popup.open {
+  display: flex;
+}
+
+/* 학생용 채팅 팝업 */
+.chat-popup {
+  width: 360px;
+  height: 500px;
+}
+
+/* 관리자용 채팅 팝업 */
+.admin-chat-popup {
+  width: 600px;
+  height: 550px;
+}
+
+/* 채팅 헤더 */
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+}
+.chat-close-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+.chat-close-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+/* 메시지 영역 */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8f9fb;
+}
+
+/* 메시지 버블 */
+.chat-message {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.chat-message.sent {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+.chat-message.received {
+  background: #fff;
+  color: #333;
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.chat-message-time {
+  font-size: 11px;
+  color: #999;
+  margin-top: 4px;
+}
+.chat-message.sent .chat-message-time {
+  color: rgba(255,255,255,0.7);
+  text-align: right;
+}
+
+/* 입력 영역 */
+.chat-input-area {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: #fff;
+  border-top: 1px solid #eee;
+}
+.chat-input-area input {
+  flex: 1;
+}
+.chat-input-area button {
+  white-space: nowrap;
+}
+.chat-input-area button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 관리자 채팅 레이아웃 */
+.admin-chat-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+.chat-student-list {
+  width: 180px;
+  border-right: 1px solid #eee;
+  overflow-y: auto;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+.new-chat-btn {
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 10px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.new-chat-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+#chatStudentListContent {
+  flex: 1;
+  overflow-y: auto;
+}
+.new-chat-student-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.2s;
+}
+.new-chat-student-item:hover {
+  background: #f8f9fb;
+}
+.new-chat-student-item .grade {
+  font-size: 11px;
+  color: #667eea;
+  background: #eef2ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.chat-student-item {
+  padding: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.chat-student-item:hover {
+  background: #f8f9fb;
+}
+.chat-student-item.active {
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border-left: 3px solid #667eea;
+}
+.chat-student-info {
+  flex: 1;
+  min-width: 0;
+}
+.chat-student-item .name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  display: block;
+}
+.chat-student-item .preview {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+.chat-student-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.chat-student-time {
+  font-size: 10px;
+  color: #aaa;
+}
+.chat-student-item .unread-dot {
+  width: 8px;
+  height: 8px;
+  background: #ff6b6b;
+  border-radius: 50%;
+  display: inline-block;
+}
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.chat-student-name {
+  padding: 10px 16px;
+  background: #f8f9fb;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid #eee;
+}
+
+/* 채팅 토스트 알림 */
+.chat-toast {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #fff;
+  border: 1px solid #667eea;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  padding: 12px 16px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.chat-toast.show {
+  display: flex;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.chat-toast-content {
+  flex: 1;
+}
+.chat-toast-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #667eea;
+}
+.chat-toast-body {
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+}
+.chat-toast-close {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+}
+.chat-toast-close:hover {
+  color: #666;
+}
+
+/* 날짜 구분선 */
+.chat-date-divider {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+  margin: 16px 0;
+  position: relative;
+}
+.chat-date-divider::before,
+.chat-date-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 30%;
+  height: 1px;
+  background: #ddd;
+}
+.chat-date-divider::before { left: 0; }
+.chat-date-divider::after { right: 0; }
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .chat-popup {
+    width: calc(100vw - 32px);
+    right: 16px;
+    bottom: 80px;
+    height: 60vh;
+  }
+  .admin-chat-popup {
+    width: calc(100vw - 32px);
+    right: 16px;
+    bottom: 80px;
+    height: 70vh;
+  }
+  .chat-student-list {
+    width: 140px;
+  }
+  .chat-floating-btn {
+    width: 50px;
+    height: 50px;
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+/* ==================== 오답 분석 시스템 스타일 ==================== */
+
+/* 문제 카드 */
+.problem-card {
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.2s;
+}
+.problem-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+.problem-card .problem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.problem-card .problem-number {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 6px 14px;
+  border-radius: 20px;
+}
+.problem-card .btn-delete-problem {
+  background: transparent;
+  border: 1px solid #ff6b6b;
+  color: #ff6b6b;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.problem-card .btn-delete-problem:hover {
+  background: #ff6b6b;
+  color: #fff;
+}
+
+/* 문제 이미지 업로드 영역 */
+.problem-image-upload {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #f8fafc;
+  margin-bottom: 16px;
+}
+.problem-image-upload:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+.problem-image-upload.has-image {
+  border-style: solid;
+  border-color: #22a06b;
+  background: #f0fff4;
+}
+.problem-image-upload img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+}
+.problem-image-upload .upload-placeholder {
+  color: #94a3b8;
+}
+.problem-image-upload .upload-placeholder span {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* 보기 옵션 */
+.choice-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.choice-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.choice-btn:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+.choice-btn.selected {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border-color: transparent;
+}
+.choice-btn.correct {
+  background: linear-gradient(135deg, #22a06b 0%, #10b981 100%);
+  color: #fff;
+  border-color: transparent;
+}
+.choice-btn.wrong {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ef4444 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* 문제 세트 아이템 */
+.problem-set-item {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.problem-set-item:hover {
+  border-color: #667eea;
+  background: #f8f9ff;
+  transform: translateX(4px);
+}
+.problem-set-item.active {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border-width: 2px;
+}
+.problem-set-item .set-info {
+  flex: 1;
+}
+.problem-set-item .set-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #333;
+  margin-bottom: 4px;
+}
+.problem-set-item .set-meta {
+  font-size: 12px;
+  color: #666;
+}
+.problem-set-item .set-count {
+  background: #667eea;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* 답안 입력 행 */
+.answer-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #e2e8f0;
+}
+.answer-input-row .problem-num {
+  font-weight: 700;
+  min-width: 60px;
+  color: #667eea;
+}
+.answer-input-row .correct-answer {
+  font-size: 13px;
+  color: #22a06b;
+  min-width: 60px;
+}
+
+/* 해설 카드 */
+.explanation-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 1px solid #e2e8f0;
+}
+.explanation-card.has-wrong {
+  border-left: 4px solid #ff6b6b;
+}
+.explanation-card .problem-image-preview {
+  max-width: 100%;
+  max-height: 250px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.explanation-card .wrong-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.explanation-card .wrong-stat-item {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.explanation-card .wrong-stat-item.correct {
+  background: #d1fae5;
+  color: #065f46;
+}
+.explanation-card .wrong-stat-item.wrong {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* 해설 박스 */
+.explanation-box {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+}
+.explanation-box h5 {
+  color: #667eea;
+  margin: 0 0 12px 0;
+  font-size: 15px;
+}
+.explanation-box .correct-explanation {
+  background: #ecfdf5;
+  border-left: 3px solid #22a06b;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.explanation-box .wrong-explanation {
+  background: #fef2f2;
+  border-left: 3px solid #ff6b6b;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.explanation-box .wrong-choice-label {
+  font-weight: 700;
+  color: #ff6b6b;
+  margin-bottom: 4px;
+}
+
+/* AI 생성 중 로딩 */
+.ai-generating {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border-radius: 12px;
+  margin: 16px 0;
+}
+.ai-generating .spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e0e7ff;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 해설 편집 모드 */
+.explanation-edit-area {
+  margin-top: 12px;
+}
+.explanation-edit-area textarea {
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+}
+.explanation-edit-area .btn-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* 문제 세트 선택 리스트 아이템 */
+.problem-set-select-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.problem-set-select-item:hover {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+.problem-set-select-item.selected {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+}
+.problem-set-select-item strong {
+  font-size: 14px;
+  color: #1f2937;
+}
+.problem-set-select-item .problem-count {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* 학생 오답 제출 목록 */
+.submitted-answer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: #f8f9fb;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.submitted-answer-item .student-name {
+  font-weight: 600;
+  color: #333;
+}
+.submitted-answer-item .wrong-count,
+.submitted-answer-item .answer-stats {
+  font-size: 13px;
+  color: #ff6b6b;
+  font-weight: 600;
+}
+.submitted-answer-item .btn-delete {
+  background: transparent;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+/* 오답률 높은 문제 강조 */
+.high-wrong-rate {
+  animation: pulseWarning 2s infinite;
+}
+@keyframes pulseWarning {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 107, 107, 0); }
+}
+
+/* 오답 분석 서브 탭 */
+.wrong-answer-sub-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 12px;
+}
+.wrong-answer-sub-tab {
+  padding: 10px 20px;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 8px 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.wrong-answer-sub-tab:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+.wrong-answer-sub-tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+.wrong-answer-sub-content {
+  display: none;
+}
+.wrong-answer-sub-content.active {
+  display: block;
+}
+
+/* 문제 카드 헤더 */
+.problem-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.problem-card-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+}
+.btn-icon {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+.btn-icon:hover {
+  background: #fee2e2;
+}
+
+/* 업로드 영역 추가 스타일 */
+.upload-icon {
+  font-size: 48px !important;
+  display: block;
+  margin-bottom: 8px;
+}
+.upload-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  display: block;
+  margin-top: 4px;
+}
+.problem-image-upload.drag-over {
+  border-color: #667eea;
+  background: #eef2ff;
+  transform: scale(1.02);
+}
+.preview-image {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.pdf-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 2px dashed #f59e0b;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pdf-preview:hover {
+  background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%);
+  transform: scale(1.02);
+}
+
+.pdf-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.pdf-filename {
+  font-size: 14px;
+  color: #92400e;
+  font-weight: 500;
+  text-align: center;
+  word-break: break-all;
+  max-width: 200px;
+}
+
+/* 보기 개수/정답 선택 영역 */
+.choice-count-selector,
+.correct-answer-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.choice-count-selector label,
+.correct-answer-selector label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #475569;
+}
+.choice-count-selector select {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.choice-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 문제 세트 정보/액션 */
+.problem-set-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+.problem-set-info strong {
+  font-size: 15px;
+  color: #333;
+}
+.problem-count {
+  background: #667eea;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+.problem-set-info .date {
+  font-size: 12px;
+  color: #94a3b8;
+}
+.problem-set-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn-small {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-small.btn-edit {
+  background: #f0f4ff;
+  color: #667eea;
+}
+.btn-small.btn-edit:hover {
+  background: #667eea;
+  color: #fff;
+}
+.btn-small.btn-delete {
+  background: #fef2f2;
+  color: #ef4444;
+}
+.btn-small.btn-delete:hover {
+  background: #ef4444;
+  color: #fff;
+}
+.btn-small.btn-save {
+  background: #22a06b;
+  color: #fff;
+}
+.btn-small.btn-save:hover {
+  background: #16a34a;
+}
+.btn-small.btn-cancel {
+  background: #e2e8f0;
+  color: #64748b;
+}
+.btn-small.btn-cancel:hover {
+  background: #cbd5e1;
+}
+
+/* 답안 입력 추가 스타일 */
+.problem-thumbnail {
+  width: 80px;
+  height: 60px;
+  flex-shrink: 0;
+}
+.problem-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.pdf-thumbnail-link,
+.pdf-preview-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 6px;
+  text-decoration: none;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.pdf-thumbnail-link:hover,
+.pdf-preview-link:hover {
+  background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%);
+  transform: scale(1.05);
+}
+.pdf-thumbnail-link .pdf-icon,
+.pdf-preview-link .pdf-icon {
+  font-size: 24px;
+  margin-bottom: 2px;
+}
+.problem-preview .pdf-preview-link {
+  width: 200px;
+  height: 150px;
+  font-size: 14px;
+}
+.problem-preview .pdf-preview-link .pdf-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+.answer-input-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+.answer-input-content .problem-number {
+  font-weight: 700;
+  color: #667eea;
+  min-width: 60px;
+}
+.answer-choices {
+  display: flex;
+  gap: 6px;
+}
+.correct-indicator {
+  font-size: 12px;
+  color: #22a06b;
+  margin-left: auto;
+}
+.answer-input-row.correct {
+  background: #ecfdf5;
+  border-color: #22a06b;
+}
+.answer-input-row.wrong {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+.choice-btn.correct-answer {
+  border-color: #22a06b;
+}
+
+/* 해설 뷰 추가 스타일 */
+.explanation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.explanation-header h4 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+.correct-rate {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 20px;
+}
+.correct-rate.good {
+  background: #d1fae5;
+  color: #065f46;
+}
+.correct-rate.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+.correct-rate.bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.explanation-content {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 20px;
+}
+.problem-preview img {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.explanation-details {
+  flex: 1;
+}
+.correct-answer-display {
+  margin-bottom: 12px;
+}
+.wrong-answers-summary {
+  margin-bottom: 16px;
+}
+.answer-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 6px;
+}
+.answer-badge.correct {
+  background: #d1fae5;
+  color: #065f46;
+}
+.answer-badge.wrong {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* 해설 텍스트 및 편집 */
+.explanation-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #475569;
+  margin-bottom: 8px;
+}
+.no-explanation {
+  color: #94a3b8;
+  font-style: italic;
+}
+.explanation-edit-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  resize: vertical;
+  font-family: inherit;
+}
+.edit-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* 통계 그리드 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.stat-item {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+.stat-label {
+  font-size: 12px;
+  color: #64748b;
+  display: block;
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  display: block;
+}
+.stat-value.good { color: #22a06b; }
+.stat-value.medium { color: #f59e0b; }
+.stat-value.bad { color: #ef4444; }
+.stat-detail {
+  font-size: 11px;
+  color: #94a3b8;
+  display: block;
+  margin-top: 2px;
+}
+
+/* 데이터 없음 표시 */
+.no-data {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* AI 생성 버튼 로딩 스피너 */
+.ai-generating {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* AI 상태 표시 */
+.ai-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 8px 12px;
+  border-radius: 8px;
+  flex: 1;
+}
+.ai-status .ai-icon {
+  font-size: 16px;
+}
+.ai-status .ai-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.ai-status .ai-state {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.ai-status .ai-state[data-state="ready"] {
+  background: #22c55e;
+  color: white;
+}
+.ai-status .ai-state[data-state="unconfigured"] {
+  background: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.8);
+}
+.ai-status .ai-state[data-state="error"] {
+  background: #ef4444;
+  color: white;
+}
+
+/* AI 진행 상황 바 */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: white;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+/* AI 해설 배지 */
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+.ai-badge.gemini {
+  background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+  color: white;
+}
+.ai-badge.gpt {
+  background: linear-gradient(135deg, #10a37f 0%, #1a7f64 100%);
+  color: white;
+}
+.ai-badge.combined {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* 해설 카드 AI 표시 */
+.explanation-card .ai-source {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* 오답 분석 모바일 반응형 */
+@media (max-width: 768px) {
+  #wrongAnswerInputContent > div,
+  #wrongAnswerResultContent > div {
+    grid-template-columns: 1fr !important;
+  }
+  .problem-card {
+    padding: 16px;
+  }
+  .choice-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+  .wrong-answer-sub-tabs {
+    flex-wrap: wrap;
+  }
+  .wrong-answer-sub-tab {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+  }
+  .explanation-content {
+    grid-template-columns: 1fr;
+  }
+  .problem-preview {
+    max-width: 200px;
+    margin: 0 auto;
+  }
+  .answer-input-content {
+    flex-wrap: wrap;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
