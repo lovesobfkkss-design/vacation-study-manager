@@ -417,6 +417,46 @@ async function getAcademyTokenBalance(academyId = null) {
   }
 }
 
+// 기존 학원 자동 토큰 지급 (토큰 필드가 없는 경우)
+async function checkAndGrantInitialTokens() {
+  const academyId = myData?.academyId;
+  if (!academyId) return false;
+
+  try {
+    const academyDoc = await getDoc(doc(db, "academies", academyId));
+    trackRead();
+
+    if (academyDoc.exists()) {
+      const data = academyDoc.data();
+      // tokenBalance 필드가 없거나 undefined인 경우에만 지급 (0은 이미 사용한 경우이므로 제외)
+      if (data.tokenBalance === undefined || data.tokenBalance === null) {
+        // 토큰 필드 생성 및 초기 토큰 지급
+        await updateDoc(doc(db, "academies", academyId), {
+          tokenBalance: DEFAULT_FREE_TOKENS
+        });
+        trackWrite();
+
+        // 지급 기록 저장
+        await addDoc(collection(db, "academies", academyId, "tokenHistory"), {
+          type: "welcome",
+          amount: DEFAULT_FREE_TOKENS,
+          description: "기존 회원 무료 토큰 지급",
+          timestamp: serverTimestamp(),
+          balanceAfter: DEFAULT_FREE_TOKENS
+        });
+        trackWrite();
+
+        console.log(`기존 학원 ${academyId}에 ${DEFAULT_FREE_TOKENS}토큰 자동 지급 완료`);
+        return true; // 토큰이 지급됨
+      }
+    }
+    return false; // 이미 토큰 필드가 있음
+  } catch (error) {
+    console.error("자동 토큰 지급 실패:", error);
+    return false;
+  }
+}
+
 // 토큰 사용 (AI 생성 시)
 async function useAcademyToken(count = 1, description = "AI 해설 생성") {
   const academyId = myData?.academyId;
@@ -1761,7 +1801,11 @@ async function renderAdmin() {
     }
   }
 
-  // 토큰 잔액 표시
+  // 기존 학원 자동 토큰 지급 확인 및 잔액 표시
+  const tokensGranted = await checkAndGrantInitialTokens();
+  if (tokensGranted) {
+    showNotification(`🎉 환영합니다! AI 해설 기능 체험을 위해 ${DEFAULT_FREE_TOKENS}개의 무료 토큰이 지급되었습니다.`, "success");
+  }
   updateTokenBalanceDisplay();
 
   // 슈퍼관리자인 경우 토큰 충전 버튼 추가
