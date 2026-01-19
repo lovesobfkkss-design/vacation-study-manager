@@ -130,6 +130,7 @@ let unsubWarning = null;
 let unsubRegistrations = null;
 let unsubAllAcademies = null;
 let allAcademiesRenderVersion = 0; // Race condition 방지용
+let allAcademiesExpanded = false;
 let unsubAdminComments = null;
 let unsubChatRooms = null;       // 채팅방 목록 리스너
 let unsubChatMessages = null;    // 메시지 리스너
@@ -153,6 +154,10 @@ let analysisSelectedStudentId = null;
 let analysisSelectedStudentData = null;
 let analysisCurrentReportType = "daily";
 let analysisTabsInitialized = false;
+let opsTabsInitialized = false;
+let reportTabsInitialized = false;
+let currentOpsSubTab = "students";
+let currentReportSubTab = "stats";
 
 // 출석 관리 탭 상태
 let attendanceSelectedStudentId = null;
@@ -399,6 +404,45 @@ function chatMessagesCol(roomId) {
 // =====================================================
 const DEFAULT_FREE_TOKENS = 10; // 신규 학원 무료 토큰
 
+// 토큰 비용 계산 (이미지 개수 기반 단계별 요금)
+// - 텍스트만: 1토큰
+// - 이미지 1개: 2토큰
+// - 이미지 2개 이상: 3토큰
+function calculateTokenCost(problem) {
+  if (!problem) return 1;
+
+  // Count images in problem
+  let imageCount = 0;
+
+  // Check main image URL
+  if (problem.imageUrl) imageCount++;
+
+  // Check additional images array
+  if (problem.images && Array.isArray(problem.images)) {
+    imageCount += problem.images.length;
+  }
+
+  // Check choice images
+  if (problem.choiceImages && Array.isArray(problem.choiceImages)) {
+    imageCount += problem.choiceImages.filter(img => img).length;
+  }
+
+  // Tiered pricing
+  if (imageCount === 0) return 1;  // Text only
+  if (imageCount === 1) return 2;  // 1 image
+  return 3;                         // 2+ images
+}
+
+// 토큰 비용 설명 텍스트 생성
+function getTokenCostDescription(tokenCost) {
+  switch (tokenCost) {
+    case 1: return "텍스트 전용";
+    case 2: return "이미지 1개 포함";
+    case 3: return "이미지 2개 이상 포함";
+    default: return "";
+  }
+}
+
 // 학원 토큰 잔액 조회
 async function getAcademyTokenBalance(academyId = null) {
   const targetAcademyId = academyId || myData?.academyId;
@@ -536,16 +580,33 @@ async function addAcademyTokens(academyId, amount, description = "수동 충전"
 function updateTokenBalanceDisplay(balance = null) {
   const tokenBalanceEl = document.getElementById("tokenBalance");
   const tokenBalanceAdminEl = document.getElementById("tokenBalanceAdmin");
+  const overviewTokenEl = document.getElementById("overviewTokenCount");
 
   if (balance !== null) {
     if (tokenBalanceEl) tokenBalanceEl.textContent = balance;
     if (tokenBalanceAdminEl) tokenBalanceAdminEl.textContent = balance;
+    if (overviewTokenEl) overviewTokenEl.textContent = balance;
   } else {
     // 비동기로 잔액 가져오기
     getAcademyTokenBalance().then(bal => {
       if (tokenBalanceEl) tokenBalanceEl.textContent = bal;
       if (tokenBalanceAdminEl) tokenBalanceAdminEl.textContent = bal;
+      if (overviewTokenEl) overviewTokenEl.textContent = bal;
     });
+  }
+}
+
+function updateAdminOverviewCounts() {
+  const requestCountEl = document.getElementById("studentRequestCount");
+  const checkCountEl = document.getElementById("checkRequestCount");
+  const overviewRequestEl = document.getElementById("overviewRequestCount");
+  const overviewCheckEl = document.getElementById("overviewCheckCount");
+
+  if (overviewRequestEl && requestCountEl) {
+    overviewRequestEl.textContent = requestCountEl.textContent || "0";
+  }
+  if (overviewCheckEl && checkCountEl) {
+    overviewCheckEl.textContent = checkCountEl.textContent || "0";
   }
 }
 
@@ -1837,12 +1898,14 @@ async function renderAdmin() {
   // 관리 유형 필터 이벤트 설정
   setupManagementFilterEvents();
 
-  await switchAdminTab("students");
+  await switchAdminTab("ops");
 }
 
 async function switchAdminTab(tabName) {
   document.querySelectorAll(".admin-tab").forEach(t => t.classList.remove("active"));
-  document.querySelector(`[data-tab="${tabName}"]`).classList.add("active");
+  const activeTab = document.querySelector(`[data-tab="${tabName}"]`);
+  if (!activeTab) return;
+  activeTab.classList.add("active");
 
   document.getElementById("adminTabStudents").style.display = "none";
   document.getElementById("adminTabAdminComments").style.display = "none";
@@ -1853,7 +1916,64 @@ async function switchAdminTab(tabName) {
   document.getElementById("adminTabAttendance").style.display = "none";
   document.getElementById("adminTabWrongAnswer").style.display = "none";
 
+  const opsSubTabs = document.getElementById("opsSubTabs");
+  const reportSubTabs = document.getElementById("reportSubTabs");
+  if (opsSubTabs) opsSubTabs.style.display = "none";
+  if (reportSubTabs) reportSubTabs.style.display = "none";
+
   // 가입 현황 탭에서 벗어날 때 리스너 해제
+  if (tabName !== "ops" || currentOpsSubTab !== "registrations") {
+    if (unsubRegistrations) {
+      unsubRegistrations();
+      unsubRegistrations = null;
+    }
+    if (unsubAllAcademies) {
+      unsubAllAcademies();
+      unsubAllAcademies = null;
+    }
+  }
+
+  if (tabName === "ops") {
+    if (opsSubTabs) opsSubTabs.style.display = "flex";
+    setupAdminOpsSubTabs();
+    await switchAdminOpsSubTab(currentOpsSubTab);
+  } else if (tabName === "reports") {
+    if (reportSubTabs) reportSubTabs.style.display = "flex";
+    setupAdminReportSubTabs();
+    await switchAdminReportSubTab(currentReportSubTab);
+  } else if (tabName === "ai") {
+    document.getElementById("adminTabWrongAnswer").style.display = "block";
+    setupWrongAnswerTabEvents();
+    await loadProblemSets();
+    // Initialize with empty problem set if none exists
+    if (problemSetProblems.length === 0) {
+      createNewProblemSet();
+    }
+  }
+}
+
+function setupAdminOpsSubTabs() {
+  if (opsTabsInitialized) return;
+  opsTabsInitialized = true;
+
+  document.querySelectorAll("#opsSubTabs .sub-tab").forEach(tab => {
+    tab.addEventListener("click", async () => {
+      await switchAdminOpsSubTab(tab.dataset.subtab);
+    });
+  });
+}
+
+async function switchAdminOpsSubTab(tabName) {
+  currentOpsSubTab = tabName;
+  document.querySelectorAll("#opsSubTabs .sub-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.subtab === tabName);
+  });
+
+  document.getElementById("adminTabStudents").style.display = "none";
+  document.getElementById("adminTabAdminComments").style.display = "none";
+  document.getElementById("adminTabAttendance").style.display = "none";
+  document.getElementById("adminTabRegistrations").style.display = "none";
+
   if (tabName !== "registrations") {
     if (unsubRegistrations) {
       unsubRegistrations();
@@ -1870,35 +1990,49 @@ async function switchAdminTab(tabName) {
     await renderStudentList();
   } else if (tabName === "adminComments") {
     document.getElementById("adminTabAdminComments").style.display = "block";
-    // 전달사항 리스너는 renderAdmin에서 이미 설정됨
-  } else if (tabName === "history") {
+  } else if (tabName === "attendance") {
+    document.getElementById("adminTabAttendance").style.display = "block";
+    setupAttendanceTabEvents();
+    await renderAttendanceStudentList();
+  } else if (tabName === "registrations") {
+    document.getElementById("adminTabRegistrations").style.display = "block";
+    loadStudentRegistrations();
+  }
+}
+
+function setupAdminReportSubTabs() {
+  if (reportTabsInitialized) return;
+  reportTabsInitialized = true;
+
+  document.querySelectorAll("#reportSubTabs .sub-tab").forEach(tab => {
+    tab.addEventListener("click", async () => {
+      await switchAdminReportSubTab(tab.dataset.subtab);
+    });
+  });
+}
+
+async function switchAdminReportSubTab(tabName) {
+  currentReportSubTab = tabName;
+  document.querySelectorAll("#reportSubTabs .sub-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.subtab === tabName);
+  });
+
+  document.getElementById("adminTabHistory").style.display = "none";
+  document.getElementById("adminTabStats").style.display = "none";
+  document.getElementById("adminTabAnalysis").style.display = "none";
+
+  if (tabName === "history") {
     document.getElementById("adminTabHistory").style.display = "block";
     setupHistoryTabEvents();
     await renderHistoryStudentList();
   } else if (tabName === "stats") {
     document.getElementById("adminTabStats").style.display = "block";
     setupStatsSubTabs();
-    // 기본: 랭킹 탭 로드
     await switchStatsSubTab("ranking");
-  } else if (tabName === "registrations") {
-    document.getElementById("adminTabRegistrations").style.display = "block";
-    loadStudentRegistrations();
   } else if (tabName === "analysis") {
     document.getElementById("adminTabAnalysis").style.display = "block";
     setupAnalysisTabEvents();
     await renderAnalysisStudentList();
-  } else if (tabName === "attendance") {
-    document.getElementById("adminTabAttendance").style.display = "block";
-    setupAttendanceTabEvents();
-    await renderAttendanceStudentList();
-  } else if (tabName === "wrongAnswer") {
-    document.getElementById("adminTabWrongAnswer").style.display = "block";
-    setupWrongAnswerTabEvents();
-    await loadProblemSets();
-    // Initialize with empty problem set if none exists
-    if (problemSetProblems.length === 0) {
-      createNewProblemSet();
-    }
   }
 }
 
@@ -2065,6 +2199,7 @@ function loadAllAcademiesRegistrations() {
   const listEl = document.getElementById("allAcademiesList");
   const academyCountEl = document.getElementById("totalAcademyCount");
   const studentCountEl = document.getElementById("totalAllStudentCount");
+  setupAllAcademiesToggleButton();
 
   // 학원 목록 실시간 리스너
   unsubAllAcademies = onSnapshot(collection(db, "academies"), async (academySnap) => {
@@ -2192,9 +2327,40 @@ function loadAllAcademiesRegistrations() {
         </div>
       `;
     }).join('');
+
+    allAcademiesExpanded = false;
+    toggleAllAcademiesAccordion(false);
   }, (error) => {
     listEl.innerHTML = '<div class="ghost">데이터를 불러오는 중 오류가 발생했습니다.</div>';
   });
+}
+
+function setupAllAcademiesToggleButton() {
+  const btn = document.getElementById("toggleAllAcademiesBtn");
+  if (!btn || btn.dataset.bound) return;
+  btn.dataset.bound = "1";
+  btn.onclick = () => toggleAllAcademiesAccordion();
+}
+
+function toggleAllAcademiesAccordion(forceState) {
+  const contents = document.querySelectorAll(".academy-accordion .accordion-content");
+  if (!contents.length) return;
+
+  const shouldExpand = typeof forceState === "boolean" ? forceState : !allAcademiesExpanded;
+  contents.forEach(content => {
+    const icon = content.parentElement?.querySelector(".accordion-icon");
+    if (shouldExpand) {
+      content.style.display = "block";
+      if (icon) icon.textContent = "▼";
+    } else {
+      content.style.display = "none";
+      if (icon) icon.textContent = "▶";
+    }
+  });
+
+  allAcademiesExpanded = shouldExpand;
+  const btn = document.getElementById("toggleAllAcademiesBtn");
+  if (btn) btn.textContent = shouldExpand ? "전체 접기" : "전체 펼치기";
 }
 
 // 아코디언 토글
@@ -2294,40 +2460,90 @@ async function renderStudentList() {
     }
 
     let displayedCount = 0;
-  for (const userDoc of usersSnap.docs) {
-    const userData = userDoc.data();
-    const uid = userDoc.id;
+    const students = [];
+    for (const userDoc of usersSnap.docs) {
+      const userData = userDoc.data();
+      const uid = userDoc.id;
 
-    // 관리 유형 필터링 (기본값: winter)
-    const managementType = userData.managementType || "winter";
-    if (currentManagementFilter !== "all" && managementType !== currentManagementFilter) {
-      continue;
+      // 관리 유형 필터링 (기본값: winter)
+      const managementType = userData.managementType || "winter";
+      if (currentManagementFilter !== "all" && managementType !== currentManagementFilter) {
+        continue;
+      }
+
+      const dailySnap = await getDoc(dailyRef(uid, getTodayKey()));
+      const dailyData = dailySnap.exists() ? dailySnap.data() : {};
+
+      const progress = Number(dailyData.progress) || 0;
+      const seconds = getEffectiveTimerSecondsForKey(dailyData, getTodayKey());
+      const isRunning = dailyData.timerRunning || false;
+
+      let startedAtMs = getTimestampMs(dailyData.timerStartedAt);
+      if (isRunning && !startedAtMs) startedAtMs = Date.now();
+      const liveSeconds = getLiveSeconds(
+        seconds,
+        startedAtMs,
+        isRunning
+      );
+
+      students.push({
+        uid,
+        userData,
+        managementType,
+        progress,
+        liveSeconds,
+        isRunning,
+        startedAtMs
+      });
     }
 
-    const dailySnap = await getDoc(dailyRef(uid, getTodayKey()));
-    const dailyData = dailySnap.exists() ? dailySnap.data() : {};
+    // Normalize managementType for safe comparison (handles case, whitespace)
+    const normalizeType = (type) => (type || "").toString().trim().toLowerCase();
+    const typeRank = (type) => {
+      const t = normalizeType(type);
+      return t === "winter" ? 0 : t === "external" ? 1 : 2;
+    };
 
-    const progress = Number(dailyData.progress) || 0;
-    const seconds = getEffectiveTimerSecondsForKey(dailyData, getTodayKey());
-    const isRunning = dailyData.timerRunning || false;
+    // DEBUG: 정렬 전 상태 확인
+    console.log("📊 정렬 전:", students.map(s => ({
+      name: s.userData?.name,
+      type: s.managementType,
+      typeNorm: normalizeType(s.managementType),
+      rank: typeRank(s.managementType),
+      progress: s.progress
+    })));
 
-    let startedAtMs = getTimestampMs(dailyData.timerStartedAt);
-    if (isRunning && !startedAtMs) startedAtMs = Date.now();
-    const liveSeconds = getLiveSeconds(
-      seconds,
-      startedAtMs,
-      isRunning
-    );
+    // Sort: 1) Winter first, 2) External second, 3) Higher progress, 4) More study time, 5) Korean name order
+    students.sort((a, b) => {
+      const typeDiff = typeRank(a.managementType) - typeRank(b.managementType);
+      if (typeDiff !== 0) return typeDiff;
+      if (b.progress !== a.progress) return b.progress - a.progress;
+      if (b.liveSeconds !== a.liveSeconds) return b.liveSeconds - a.liveSeconds;
+      const nameA = (a.userData?.name || "");
+      const nameB = (b.userData?.name || "");
+      return nameA.localeCompare(nameB, 'ko');
+    });
 
-    // 관리 유형 뱃지
-    const typeBadge = managementType === "external"
-      ? '<span class="badge" style="margin-left:6px; background:#f59e0b; color:#fff;">🏠 외부</span>'
-      : '<span class="badge" style="margin-left:6px; background:#3b82f6; color:#fff;">🏫 윈터</span>';
+    // DEBUG: 정렬 후 상태 확인
+    console.log("📊 정렬 후:", students.map(s => ({
+      name: s.userData?.name,
+      type: s.managementType,
+      rank: typeRank(s.managementType),
+      progress: s.progress
+    })));
 
-    const card = document.createElement("div");
-    card.className = "student-card";
-    card.id = `student-card-${uid}`;
-    card.innerHTML = `
+    for (const student of students) {
+      const { uid, userData, managementType, progress, liveSeconds, isRunning, startedAtMs } = student;
+
+      // 관리 유형 뱃지
+      const typeBadge = managementType === "external"
+        ? '<span class="badge" style="margin-left:6px; background:#f59e0b; color:#fff;">🏠 외부</span>'
+        : '<span class="badge" style="margin-left:6px; background:#3b82f6; color:#fff;">🏫 윈터</span>';
+
+      const card = document.createElement("div");
+      card.className = "student-card";
+      card.id = `student-card-${uid}`;
+      card.innerHTML = `
       <div class="row" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div class="student-info">
           <strong>${escapeHtml(userData.name)}</strong>
@@ -2351,7 +2567,7 @@ async function renderStudentList() {
         </div>
       </div>
     `;
-    displayedCount++;
+      displayedCount++;
 
     // 상세보기 버튼
     card.querySelector(".btn-detail").onclick = (e) => {
@@ -2373,10 +2589,10 @@ async function renderStudentList() {
       remoteTimerReset(uid);
     };
 
-    list.appendChild(card);
+      list.appendChild(card);
 
     // 실시간 타이머 구독
-    studentTimerUnsubscribers[uid] = onSnapshot(dailyRef(uid, getTodayKey()), (snap) => {
+      studentTimerUnsubscribers[uid] = onSnapshot(dailyRef(uid, getTodayKey()), (snap) => {
       const data = snap.exists() ? snap.data() : {};
       const baseSecs = Number(data.timerSeconds) || 0;
       const running = !!data.timerRunning;
@@ -2393,6 +2609,9 @@ async function renderStudentList() {
       updateAdminTimerTickState();
     });
     }
+
+    const overviewStudentEl = document.getElementById("overviewStudentCount");
+    if (overviewStudentEl) overviewStudentEl.textContent = displayedCount;
 
     // 필터 결과가 없는 경우
     if (displayedCount === 0) {
@@ -5245,12 +5464,15 @@ async function loadCheckRequests() {
   // 점검 요청 개수 업데이트
   const requestedCount = allRequests.filter(r => r.task.checkStatus === "requested").length;
   countSpan.textContent = requestedCount;
+  updateAdminOverviewCounts();
 
   // 점검 요청이 있으면 깜빡임 효과 추가
-  if (requestedCount > 0) {
-    alertSpan.classList.add("blinking");
-  } else {
-    alertSpan.classList.remove("blinking");
+  if (alertSpan) {
+    if (requestedCount > 0) {
+      alertSpan.classList.add("blinking");
+    } else {
+      alertSpan.classList.remove("blinking");
+    }
   }
 
   // 목록 렌더링
@@ -6642,6 +6864,7 @@ function renderStudentRequests(docs) {
   if (!listEl) return;
 
   countEl.textContent = docs.length;
+  updateAdminOverviewCounts();
 
   if (docs.length === 0) {
     listEl.innerHTML = '<div class="ghost">요청이 없습니다.</div>';
@@ -8579,6 +8802,16 @@ let currentProblemSetId = null;
 let problemSetProblems = []; // Array of problems in current set
 let wrongAnswerTabInitialized = false;
 
+function setWrongAnswerSelectedSet(label) {
+  const el = document.getElementById("wrongAnswerSelectedSetLabel");
+  if (el) el.textContent = label || "-";
+}
+
+function setWrongAnswerSelectedStudent(label) {
+  const el = document.getElementById("wrongAnswerSelectedStudentLabel");
+  if (el) el.textContent = label || "-";
+}
+
 // =====================================================
 // AI API Management
 // =====================================================
@@ -8703,47 +8936,236 @@ function loadApiKeysToInputs() {
   updateAiStatus();
 }
 
+// Gemini API helper with model fallback
+async function callGeminiGenerateContent({ apiKey, parts, generationConfig, debugLabel }) {
+  const modelCandidates = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro-latest",
+    "gemini-1.5-pro"
+  ];
+  let lastModelError = null;
+
+  for (const model of modelCandidates) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: generationConfig || { temperature: 0.4, maxOutputTokens: 2048 }
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      if (debugLabel) {
+        console.log(`🔷 [Gemini] ${debugLabel} 모델 사용: ${model}`);
+      }
+      return text;
+    }
+
+    let errorData = null;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = null;
+    }
+
+    const errorMessage = errorData?.error?.message || `Gemini API 오류: ${response.status}`;
+    const isModelError = response.status === 404 || /not found|not supported/i.test(errorMessage);
+
+    if (isModelError) {
+      lastModelError = errorMessage;
+      if (debugLabel) {
+        console.warn(`🔷 [Gemini] ${debugLabel} 모델 실패(${model}): ${errorMessage}`);
+      }
+      continue;
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  throw new Error(lastModelError || "Gemini API 호출 실패");
+}
+
+function parseDataUrl(dataUrl) {
+  const match = /^data:(.*?);base64,(.*)$/.exec(dataUrl || "");
+  if (!match) return null;
+  return { mimeType: match[1], base64: match[2] };
+}
+
+function isLowQualityResponse(text) {
+  if (!text) return true;
+  const trimmed = text.trim();
+  if (trimmed.length < 120) return true;
+  const hasCore = /정답|해설|오답/.test(trimmed);
+  return !hasCore;
+}
+
+async function withRetry(task, options = {}) {
+  const retries = options.retries ?? 2;
+  const label = options.label || "AI";
+  const baseDelayMs = options.baseDelayMs ?? 800;
+
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const result = await task(attempt);
+      if (typeof result === "string") {
+        if (isLowQualityResponse(result)) {
+          throw new Error(`${label} 결과 품질 부족`);
+        }
+      }
+      if (result && typeof result.analysis === "string") {
+        if (isLowQualityResponse(result.analysis)) {
+          throw new Error(`${label} 결과 품질 부족`);
+        }
+      }
+      return result;
+    } catch (err) {
+      lastError = err;
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      console.warn(`⚠️ [${label}] 재시도 ${attempt + 1}/${retries + 1} 대기 ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+
+  throw lastError || new Error(`${label} 요청 실패`);
+}
+
+async function renderPdfToImageDataUrls(pdfUrl, options = {}) {
+  const maxPages = options.maxPages || 3;
+  const scale = options.scale || 1.5;
+
+  if (typeof pdfjsLib === "undefined") {
+    throw new Error("PDF 처리 라이브러리를 찾을 수 없습니다.");
+  }
+
+  const response = await fetch(pdfUrl);
+  if (!response.ok) {
+    throw new Error(`PDF 다운로드 실패: ${response.status}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  const pageCount = Math.min(pdf.numPages, maxPages);
+  const imageDataUrls = [];
+
+  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    await page.render({ canvasContext: context, viewport }).promise;
+    imageDataUrls.push(canvas.toDataURL("image/jpeg", 0.9));
+  }
+
+  return imageDataUrls;
+}
+
 // Call Gemini Vision API
 async function callGeminiVision(imageUrl, prompt) {
   const { geminiKey } = getApiKeys();
   if (!geminiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
 
+  console.log('🔷 [Gemini] 이미지 URL:', imageUrl?.substring(0, 100) + '...');
+
   // Fetch image and convert to base64
   const imageResponse = await fetch(imageUrl);
-  const imageBlob = await imageResponse.blob();
-  const base64 = await blobToBase64(imageBlob);
-  const mimeType = imageBlob.type || 'image/jpeg';
-
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inline_data: { mime_type: mimeType, data: base64.split(',')[1] } }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 2048
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'Gemini API 호출 실패');
+  if (!imageResponse.ok) {
+    throw new Error(`이미지 다운로드 실패: ${imageResponse.status}`);
   }
 
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const imageBlob = await imageResponse.blob();
+  const base64 = await blobToBase64(imageBlob);
+  let mimeType = imageBlob.type || 'image/jpeg';
+
+  console.log('🔷 [Gemini] 원본 MIME 타입:', mimeType);
+
+  // Gemini supports: image/png, image/jpeg, image/webp, image/heic, image/heif, application/pdf
+  const validGeminiTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
+
+  // If mime type is empty or invalid, try to detect from URL
+  if (!mimeType || !validGeminiTypes.includes(mimeType)) {
+    const urlLower = imageUrl.toLowerCase();
+    if (urlLower.includes('.pdf')) mimeType = 'application/pdf';
+    else if (urlLower.includes('.png')) mimeType = 'image/png';
+    else if (urlLower.includes('.webp')) mimeType = 'image/webp';
+    else if (urlLower.includes('.heic')) mimeType = 'image/heic';
+    else mimeType = 'image/jpeg'; // Default to jpeg
+    console.log('🔷 [Gemini] 감지된 MIME 타입:', mimeType);
+  }
+
+  const resultText = await callGeminiGenerateContent({
+    apiKey: geminiKey,
+    parts: [
+      { text: prompt },
+      { inline_data: { mime_type: mimeType, data: base64.split(',')[1] } }
+    ],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+    debugLabel: "Vision"
+  });
+  console.log('🔷 [Gemini] ✅ 성공! 응답 길이:', resultText.length);
+  return resultText;
+}
+
+async function callGeminiVisionWithDataUrls(imageDataUrls, prompt) {
+  const { geminiKey } = getApiKeys();
+  if (!geminiKey) throw new Error("Gemini API 키가 설정되지 않았습니다.");
+
+  const parts = [{ text: prompt }];
+  imageDataUrls.forEach((url) => {
+    const parsed = parseDataUrl(url);
+    if (!parsed) return;
+    parts.push({
+      inline_data: {
+        mime_type: parsed.mimeType,
+        data: parsed.base64
+      }
+    });
+  });
+
+  const resultText = await callGeminiGenerateContent({
+    apiKey: geminiKey,
+    parts,
+    generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+    debugLabel: "Vision(PDF)"
+  });
+
+  console.log("🔷 [Gemini] ✅ 성공! 응답 길이:", resultText.length);
+  return resultText;
 }
 
 // Call OpenAI GPT-4o Vision API
 async function callGptVision(imageUrl, prompt) {
   const { openaiKey } = getApiKeys();
   if (!openaiKey) throw new Error('OpenAI API 키가 설정되지 않았습니다.');
+
+  console.log('🟢 [GPT] 이미지 URL:', imageUrl?.substring(0, 100) + '...');
+
+  // URL로 PDF 체크
+  if (imageUrl.toLowerCase().includes('.pdf')) {
+    console.log('🟢 [GPT] ⏭️ PDF URL 감지 - 스킵 (null 반환)');
+    return null;
+  }
+
+  // 먼저 이미지를 fetch해서 MIME type 확인 (Firebase Storage URL은 확장자가 없음)
+  try {
+    const headResponse = await fetch(imageUrl, { method: 'HEAD' });
+    const contentType = headResponse.headers.get('content-type');
+    if (contentType && contentType.includes('application/pdf')) {
+      console.log('🟢 [GPT] ⏭️ PDF MIME type 감지 - 스킵 (null 반환)');
+      return null;
+    }
+  } catch (e) {
+    console.log('🟢 [GPT] HEAD 요청 실패, 계속 진행:', e.message);
+  }
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -8760,18 +9182,55 @@ async function callGptVision(imageUrl, prompt) {
           { type: 'image_url', image_url: { url: imageUrl } }
         ]
       }],
-      max_tokens: 2048,
+      max_tokens: 800,
       temperature: 0.4
     })
   });
 
   if (!response.ok) {
     const error = await response.json();
+    console.error('🟢 [GPT] API 오류:', error);
     throw new Error(error.error?.message || 'OpenAI API 호출 실패');
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  const resultText = data.choices?.[0]?.message?.content || '';
+  console.log('🟢 [GPT] ✅ 성공! 응답 길이:', resultText.length);
+  return resultText;
+}
+
+async function callGptVisionWithDataUrls(imageDataUrls, prompt) {
+  const { openaiKey } = getApiKeys();
+  if (!openaiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
+
+  const content = [{ type: "text", text: prompt }];
+  imageDataUrls.forEach((url) => {
+    content.push({ type: "image_url", image_url: { url } });
+  });
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${openaiKey}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      messages: [{ role: "user", content }],
+      max_tokens: 800,
+      temperature: 0.4
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || `OpenAI API 오류: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const resultText = data.choices?.[0]?.message?.content || "";
+  console.log("🟢 [GPT] ✅ 성공! 응답 길이:", resultText.length);
+  return resultText;
 }
 
 // Call Claude Vision API
@@ -8803,15 +9262,38 @@ async function callClaudeVision(imageUrl, prompt) {
     console.log('🟣 [Claude] 이미지 blob 크기:', imageBlob.size, 'bytes');
     console.log('🟣 [Claude] 이미지 타입:', imageBlob.type);
 
+    // Claude only supports: image/jpeg, image/png, image/gif, image/webp
+    const validClaudeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    let mimeType = imageBlob.type || 'image/jpeg';
+
+    // If not a valid type, try to detect from URL or default to jpeg
+    if (!validClaudeTypes.includes(mimeType)) {
+      console.log('🟣 [Claude] ⚠️ 지원하지 않는 이미지 타입:', mimeType);
+
+      // Check if it's a PDF - skip Claude for PDFs (return null instead of throwing)
+      if (mimeType === 'application/pdf' || imageUrl.toLowerCase().includes('.pdf')) {
+        console.log('🟣 [Claude] ⏭️ PDF 감지 - 스킵 (null 반환)');
+        return null;
+      }
+
+      // Try to detect from URL extension
+      const urlLower = imageUrl.toLowerCase();
+      if (urlLower.includes('.png')) mimeType = 'image/png';
+      else if (urlLower.includes('.gif')) mimeType = 'image/gif';
+      else if (urlLower.includes('.webp')) mimeType = 'image/webp';
+      else mimeType = 'image/jpeg'; // Default to jpeg
+
+      console.log('🟣 [Claude] 🔄 이미지 타입 변경:', mimeType);
+    }
+
     const base64 = await blobToBase64(imageBlob);
-    const mimeType = imageBlob.type || 'image/jpeg';
     const base64Data = base64.split(',')[1];
     console.log('🟣 [Claude] Base64 데이터 길이:', base64Data?.length);
 
     // API 요청 준비
     const requestBody = {
       model: 'claude-sonnet-4-5',  // 최신 모델명 (2025년 기준)
-      max_tokens: 2048,
+      max_tokens: 800,
       messages: [{
         role: 'user',
         content: [
@@ -8864,6 +9346,46 @@ async function callClaudeVision(imageUrl, prompt) {
     console.error('🟣 [Claude] 스택:', error.stack);
     throw error;
   }
+}
+
+async function callClaudeVisionWithDataUrls(imageDataUrls, prompt) {
+  const { claudeKey } = getApiKeys();
+  if (!claudeKey) throw new Error("Claude API 키가 설정되지 않았습니다.");
+
+  const contentParts = [];
+  imageDataUrls.forEach((url) => {
+    const parsed = parseDataUrl(url);
+    if (!parsed) return;
+    contentParts.push({
+      type: "image",
+      source: { type: "base64", media_type: parsed.mimeType, data: parsed.base64 }
+    });
+  });
+  contentParts.push({ type: "text", text: prompt });
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": claudeKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-5",
+      max_tokens: 800,
+      messages: [{ role: "user", content: contentParts }]
+    })
+  });
+
+  const responseData = await response.json();
+  if (!response.ok) {
+    throw new Error(responseData.error?.message || `Claude API 오류: ${response.status}`);
+  }
+
+  const resultText = responseData.content?.[0]?.text || "";
+  console.log("🟣 [Claude] ✅ 성공! 응답 길이:", resultText.length);
+  return resultText;
 }
 
 // Helper: Convert blob to base64
@@ -8929,9 +9451,46 @@ function compareAiResponses(geminiResponse, gptResponse, claudeResponse) {
   return scores[0];
 }
 
+function compareAnalysisResponses(results) {
+  const scoreResponse = (text) => {
+    if (!text) return 0;
+    let score = 0;
+    const length = text.length;
+
+    if (length >= 200 && length <= 1200) score += 25;
+    else if (length >= 1200 && length <= 2000) score += 15;
+    else if (length < 120) score -= 10;
+
+    if (/【문제/.test(text)) score += 10;
+    if (/- 학생 답:/.test(text)) score += 10;
+    if (/- 정답:/.test(text)) score += 10;
+    if (/- 오답 이유:/.test(text)) score += 10;
+    if (/- 정답 해설:/.test(text)) score += 10;
+
+    const koreanRatio = (text.match(/[가-힣]/g) || []).length / Math.max(text.length, 1);
+    if (koreanRatio > 0.5) score += 10;
+
+    return score;
+  };
+
+  const scored = (results || [])
+    .filter(r => r && r.analysis)
+    .map(r => ({ ...r, score: scoreResponse(r.analysis) }))
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0] || null;
+}
+
 // Generate explanation for a single problem using multiple AIs
 async function generateProblemExplanation(problem, problemIndex, wrongStats) {
   const { geminiKey, openaiKey, claudeKey } = getApiKeys();
+
+  // 🔍 디버깅: API 키 상태 확인
+  console.log('🔍 [Debug] API 키 상태:');
+  console.log('  - Gemini:', geminiKey ? `✅ 설정됨 (${geminiKey.substring(0, 10)}...)` : '❌ 없음');
+  console.log('  - OpenAI:', openaiKey ? `✅ 설정됨 (${openaiKey.substring(0, 10)}...)` : '❌ 없음');
+  console.log('  - Claude:', claudeKey ? `✅ 설정됨 (${claudeKey.substring(0, 10)}...)` : '❌ 없음');
+  console.log('  - 이미지 URL:', problem.imageUrl ? problem.imageUrl.substring(0, 80) + '...' : '❌ 없음');
 
   if (!geminiKey && !openaiKey && !claudeKey) {
     throw new Error('최소 하나의 API 키가 필요합니다.');
@@ -8949,7 +9508,7 @@ async function generateProblemExplanation(problem, problemIndex, wrongStats) {
     .map(([choice, count]) => `${choice}번: ${count}명 (${Math.round((count/totalStudents)*100)}%)`)
     .join(', ');
 
-  const prompt = `당신은 수능/모의고사 영어 전문 강사입니다. 이미지의 문제를 분석하고 **매우 상세한** 해설을 작성해주세요.
+  const prompt = `당신은 수능/모의고사 영어 전문 강사입니다. 이미지의 문제를 분석하고 **간결하고 이해하기 쉬운** 해설을 작성해주세요.
 
 ## 문제 정보
 - 문제 번호: ${problemIndex + 1}번
@@ -8993,7 +9552,8 @@ ${Object.entries(wrongStats)
 - 핵심 용어는 작은따옴표로 강조
 - 영어 원문 인용 시 해석 병기
 - 단순히 "정답과 다릅니다"가 아닌 **구체적 이유** 제시
-- 학생이 왜 틀렸는지 이해할 수 있도록 **논리적 흐름** 설명`;
+- 학생이 왜 틀렸는지 이해할 수 있도록 **논리적 흐름** 설명
+- 해설은 **간결하게 4~7문장** 내로 요약`;
 
   let geminiResponse = null;
   let gptResponse = null;
@@ -9002,34 +9562,96 @@ ${Object.entries(wrongStats)
   // Call all APIs in parallel
   const promises = [];
 
-  if (geminiKey && problem.imageUrl) {
+  const isPdf = !!problem.isPdf || (problem.fileName && problem.fileName.toLowerCase().endsWith('.pdf'));
+  console.log('🔍 [Debug] API 호출 조건 확인:');
+  console.log('  - Gemini 호출:', geminiKey && problem.imageUrl ? '✅ 예' : '❌ 아니오');
+  console.log('  - GPT 호출:', openaiKey && problem.imageUrl && !isPdf ? '✅ 예' : '❌ 아니오');
+  console.log('  - Claude 호출:', claudeKey && problem.imageUrl && !isPdf ? '✅ 예' : '❌ 아니오');
+
+  if (geminiKey && problem.imageUrl && !isPdf) {
+    console.log('🔷 [Gemini] API 호출 시작...');
     promises.push(
-      callGeminiVision(problem.imageUrl, prompt)
-        .then(r => { geminiResponse = r; })
-        .catch(e => { console.error('Gemini error:', e); })
+      withRetry(() => callGeminiVision(problem.imageUrl, prompt), { label: "Gemini", retries: 2 })
+        .then(r => {
+          geminiResponse = r;
+          console.log('🔷 [Gemini] 응답 받음, 길이:', r?.length || 0);
+        })
+        .catch(e => { console.error('🔷 [Gemini] 오류:', e); })
     );
   }
 
-  if (openaiKey && problem.imageUrl) {
+  if (openaiKey && problem.imageUrl && !isPdf) {
+    console.log('🟢 [GPT] API 호출 시작...');
     promises.push(
-      callGptVision(problem.imageUrl, prompt)
-        .then(r => { gptResponse = r; })
-        .catch(e => { console.error('GPT error:', e); })
+      withRetry(() => callGptVision(problem.imageUrl, prompt), { label: "GPT", retries: 2 })
+        .then(r => {
+          gptResponse = r;
+          console.log('🟢 [GPT] 응답 받음, 길이:', r?.length || 0);
+        })
+        .catch(e => { console.error('🟢 [GPT] 오류:', e); })
     );
   }
 
-  if (claudeKey && problem.imageUrl) {
+  // Claude는 PDF 지원 안함 - 이미지만 호출
+  if (claudeKey && problem.imageUrl && !isPdf) {
+    console.log('🟣 [Claude] API 호출 시작...');
     promises.push(
-      callClaudeVision(problem.imageUrl, prompt)
-        .then(r => { claudeResponse = r; })
-        .catch(e => { console.error('Claude error:', e); })
+      withRetry(() => callClaudeVision(problem.imageUrl, prompt), { label: "Claude", retries: 2 })
+        .then(r => {
+          claudeResponse = r;
+          console.log('🟣 [Claude] 응답 받음, 길이:', r?.length || 0);
+        })
+        .catch(e => { console.error('🟣 [Claude] 오류:', e); })
     );
+  } else if (isPdf) {
+    console.log('🟣 [Claude] PDF는 지원하지 않아 스킵');
+  }
+
+  if (isPdf && problem.imageUrl) {
+    console.log('📄 [PDF] 이미지 변환 후 Vision 호출');
+    const pdfImages = await renderPdfToImageDataUrls(problem.imageUrl, { maxPages: 3, scale: 1.5 });
+
+    if (geminiKey) {
+      promises.push(
+        withRetry(() => callGeminiVisionWithDataUrls(pdfImages, prompt), { label: "Gemini/PDF", retries: 2 })
+          .then(r => {
+            geminiResponse = r;
+            console.log('🔷 [Gemini/PDF] 응답 받음, 길이:', r?.length || 0);
+          })
+          .catch(e => { console.error('🔷 [Gemini/PDF] 오류:', e); })
+      );
+    }
+
+    if (openaiKey) {
+      promises.push(
+        withRetry(() => callGptVisionWithDataUrls(pdfImages, prompt), { label: "GPT/PDF", retries: 2 })
+          .then(r => {
+            gptResponse = r;
+            console.log('🟢 [GPT/PDF] 응답 받음, 길이:', r?.length || 0);
+          })
+          .catch(e => { console.error('🟢 [GPT/PDF] 오류:', e); })
+      );
+    }
+
+    if (claudeKey) {
+      promises.push(
+        withRetry(() => callClaudeVisionWithDataUrls(pdfImages, prompt), { label: "Claude/PDF", retries: 2 })
+          .then(r => {
+            claudeResponse = r;
+            console.log('🟣 [Claude/PDF] 응답 받음, 길이:', r?.length || 0);
+          })
+          .catch(e => { console.error('🟣 [Claude/PDF] 오류:', e); })
+      );
+    }
   }
 
   await Promise.all(promises);
 
   // Compare and select best response
   const result = compareAiResponses(geminiResponse, gptResponse, claudeResponse);
+  if (!result.text) {
+    throw new Error("AI 해설 생성 실패: 지원되는 모델을 찾지 못했습니다. (PDF는 Gemini만 지원)");
+  }
 
   return {
     explanation: result.text,
@@ -9062,6 +9684,13 @@ function setupWrongAnswerTabEvents() {
       switchWrongAnswerSubTab(targetTab);
     });
   });
+  const workflowSteps = document.querySelectorAll(".wrong-answer-step");
+  workflowSteps.forEach(step => {
+    step.addEventListener("click", () => {
+      const targetTab = step.dataset.subtab;
+      switchWrongAnswerSubTab(targetTab);
+    });
+  });
 
   // Problem set creation
   const createSetBtn = document.getElementById("createProblemSetBtn");
@@ -9084,7 +9713,11 @@ function setupWrongAnswerTabEvents() {
   // Student selection for answer input
   const studentSelect = document.getElementById("wrongAnswerStudentSelect");
   if (studentSelect) {
-    studentSelect.addEventListener("change", loadStudentAnswerForm);
+    studentSelect.addEventListener("change", () => {
+      const selectedName = studentSelect.options[studentSelect.selectedIndex]?.textContent || "-";
+      setWrongAnswerSelectedStudent(selectedName === "학생을 선택하세요" ? "-" : selectedName);
+      loadStudentAnswerForm();
+    });
   }
 
   // DAY selection for answer input
@@ -9146,6 +9779,8 @@ function setupWrongAnswerTabEvents() {
   console.log('🔧 [setupWrongAnswerTabEvents] loadApiKeysToInputs 호출...');
   loadApiKeysToInputs();
   updateAiStatus();
+  setWrongAnswerSelectedSet(currentProblemSet?.title || "-");
+  setWrongAnswerSelectedStudent("-");
 
   // Quick PDF registration
   const quickPdfInput = document.getElementById("quickPdfInput");
@@ -9197,12 +9832,16 @@ function switchWrongAnswerSubTab(tabName) {
   const tabContentMap = {
     "upload": "wrongAnswerUploadContent",
     "input": "wrongAnswerInputContent",
-    "result": "wrongAnswerResultContent"
+    "result": "wrongAnswerResultContent",
+    "studentAnalysis": "studentAnalysisContent"
   };
 
   // Update tab buttons
   document.querySelectorAll("#adminTabWrongAnswer .sub-tab").forEach(tab => {
     tab.classList.toggle("active", tab.dataset.subtab === tabName);
+  });
+  document.querySelectorAll(".wrong-answer-step").forEach(step => {
+    step.classList.toggle("active", step.dataset.subtab === tabName);
   });
 
   // Update tab content - show selected, hide others
@@ -9219,6 +9858,8 @@ function switchWrongAnswerSubTab(tabName) {
     loadStudentsForAnswerInput();
   } else if (tabName === "result") {
     loadProblemSets();
+  } else if (tabName === "studentAnalysis") {
+    initStudentAnalysisTab();
   }
 }
 
@@ -9356,37 +9997,51 @@ function setupPdfDragAndDrop() {
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      if (file.type === 'application/pdf') {
-        handlePdfFile(file);
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (validTypes.includes(file.type)) {
+        handleUploadFile(file);
       } else {
-        showNotification("PDF 파일만 업로드 가능합니다.", "warning");
+        showNotification("PDF 또는 이미지 파일(JPG, PNG)만 업로드 가능합니다.", "warning");
       }
     }
   });
 }
 
-// Handle PDF file (from input or drag-drop)
-function handlePdfFile(file) {
+// Handle uploaded file (PDF or image) from input or drag-drop
+function handleUploadFile(file) {
   quickPdfFile = file;
   const statusDiv = document.getElementById("quickPdfStatus");
+  const isPdf = file.type === 'application/pdf';
+  const icon = isPdf ? '📄' : '🖼️';
+  const fileType = isPdf ? 'PDF' : '이미지';
+
   if (statusDiv) {
     statusDiv.innerHTML = `
-      <span style="font-size:36px;">✅</span>
+      <span style="font-size:36px;">${icon} ✅</span>
       <p style="margin:8px 0 0 0; font-weight:600;">${file.name}</p>
-      <p style="margin:4px 0 0 0; font-size:12px; opacity:0.8;">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+      <p style="margin:4px 0 0 0; font-size:12px; opacity:0.8;">${(file.size / 1024 / 1024).toFixed(2)} MB | ${fileType}</p>
+      ${!isPdf ? '<p style="margin:4px 0 0 0; font-size:11px; color:#fbbf24;">⚠️ 이미지는 Claude/GPT Vision 사용 권장</p>' : ''}
     `;
   }
-  showNotification(`PDF 업로드됨: ${file.name}`, "success");
+  showNotification(`${fileType} 업로드됨: ${file.name}`, "success");
 }
 
-// Handle quick PDF file selection (from input)
+// Legacy function name for compatibility
+function handlePdfFile(file) {
+  handleUploadFile(file);
+}
+
+// Handle file selection (from input)
 function handleQuickPdfSelect(event) {
   const file = event.target.files[0];
-  if (!file || file.type !== 'application/pdf') {
-    showNotification("PDF 파일만 업로드 가능합니다.", "warning");
+  if (!file) return;
+
+  const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  if (!validTypes.includes(file.type)) {
+    showNotification("PDF 또는 이미지 파일(JPG, PNG)만 업로드 가능합니다.", "warning");
     return;
   }
-  handlePdfFile(file);
+  handleUploadFile(file);
 }
 
 // Extract text from PDF and detect answers
@@ -9666,6 +10321,7 @@ async function quickRegisterProblemSet() {
       problems.push({
         imageUrl: pdfUrl,  // All problems reference the same PDF
         fileName: quickPdfFile.name,
+        isPdf: true,
         problemNumber: i + 1,
         choiceCount: choiceCount,
         correctAnswer: answers[i],
@@ -9725,6 +10381,7 @@ function createNewProblemSet() {
     problems: []
   };
   problemSetProblems = [];
+  setWrongAnswerSelectedSet("새 문제 세트");
 
   document.getElementById("problemSetName").value = "";
   document.getElementById("problemList").innerHTML = "";
@@ -10120,6 +10777,7 @@ async function selectProblemSetForAnswer(setId, data) {
   currentProblemSetId = setId;
   currentProblemSet = data;
   problemSetProblems = data.problems || [];
+  setWrongAnswerSelectedSet(data?.title || "-");
 
   // Update UI - highlight selected item
   document.querySelectorAll("#problemSetSelectList .problem-set-select-item").forEach(item => {
@@ -10398,6 +11056,7 @@ async function selectProblemSetForExplanation(setId, data) {
   currentProblemSetId = setId;
   currentProblemSet = data;
   problemSetProblems = data.problems || [];
+  setWrongAnswerSelectedSet(data?.title || "-");
 
   // Update UI - highlight selected item
   document.querySelectorAll("#resultProblemSetList .problem-set-select-item").forEach(item => {
@@ -10526,11 +11185,13 @@ async function loadExplanationView() {
                 <button class="btn-small btn-edit" onclick="editExplanation(${index}, 'correct')">수정</button>
               </div>
 
-              ${wrongChoices.map(([choice]) => `
+              ${wrongChoices
+                .filter(([choice]) => problem.wrongExplanations && problem.wrongExplanations[choice])
+                .map(([choice]) => `
                 <div class="explanation-box wrong-explanation">
                   <h5>❌ ${choice}번을 선택한 경우</h5>
                   <div class="explanation-text" id="wrongExplanation_${index}_${choice}">
-                    ${(problem.wrongExplanations && problem.wrongExplanations[choice]) || '<span class="no-explanation">해설이 없습니다.</span>'}
+                    ${problem.wrongExplanations[choice]}
                   </div>
                   <button class="btn-small btn-edit" onclick="editExplanation(${index}, '${choice}')">수정</button>
                 </div>
@@ -10541,7 +11202,368 @@ async function loadExplanationView() {
       `;
     }).join('');
   }
+
+  // Render problem number grid for single explanation
+  await renderProblemNumberGrid();
 }
+
+// Render clickable problem number grid
+async function renderProblemNumberGrid() {
+  const gridContainer = document.getElementById("problemNumberGrid");
+  const tokenDisplay = document.getElementById("currentTokenForSingle");
+
+  if (!gridContainer) return;
+
+  // Update token balance display
+  try {
+    const tokenBalance = await getAcademyTokenBalance();
+    if (tokenDisplay) {
+      tokenDisplay.textContent = tokenBalance;
+    }
+  } catch (e) {
+    if (tokenDisplay) tokenDisplay.textContent = "-";
+  }
+
+  // Check if we have problems
+  if (!problemSetProblems || problemSetProblems.length === 0) {
+    gridContainer.innerHTML = '<div class="ghost">문제 세트를 선택하면 문제 번호가 표시됩니다.</div>';
+    return;
+  }
+
+  // Render problem number buttons
+  gridContainer.innerHTML = problemSetProblems.map((problem, index) => {
+    const hasExplanation = problem.explanation && !problem.explanation.includes('해설이 없습니다') && !problem.explanation.includes('수동 해설 필요');
+    const hasImage = problem.imageUrl;
+
+    let className = 'problem-number-btn';
+    if (hasExplanation) className += ' has-explanation';
+    if (!hasImage) className += ' no-image';
+
+    const tooltip = hasImage
+      ? (hasExplanation ? '클릭하여 해설 보기' : '클릭하여 AI 해설 생성')
+      : '이미지 없음 (해설 생성 불가)';
+
+    return `
+      <button class="${className}"
+              onclick="handleProblemClick(${index})"
+              title="${tooltip}"
+              ${!hasImage ? 'disabled' : ''}>
+        ${index + 1}
+      </button>
+    `;
+  }).join('');
+}
+
+// Handle problem number click - show existing or generate new
+function handleProblemClick(problemIndex) {
+  const problem = problemSetProblems[problemIndex];
+  if (!problem) return;
+
+  const hasExplanation = problem.explanation &&
+    !problem.explanation.includes('해설이 없습니다') &&
+    !problem.explanation.includes('수동 해설 필요');
+
+  if (hasExplanation) {
+    // Show existing explanation in modal
+    openExplanationModal(problemIndex);
+    showExplanationInModal(problem, problemIndex);
+  } else {
+    // Generate new explanation
+    generateSingleProblemExplanation(problemIndex);
+  }
+}
+
+window.handleProblemClick = handleProblemClick;
+
+// Generate AI explanation for a single problem (with modal UI)
+async function generateSingleProblemExplanation(problemIndex) {
+  const setId = currentProblemSetId;
+  if (!setId || !currentProblemSet || !problemSetProblems) {
+    showNotification("문제 세트를 선택하세요.", "warning");
+    return;
+  }
+
+  const problem = problemSetProblems[problemIndex];
+  if (!problem) {
+    showNotification("문제를 찾을 수 없습니다.", "error");
+    return;
+  }
+
+  if (!problem.imageUrl) {
+    showNotification("이미지가 없는 문제는 AI 해설을 생성할 수 없습니다.", "warning");
+    return;
+  }
+
+  // Check API keys
+  const { geminiKey, openaiKey, claudeKey } = getApiKeys();
+  if (!geminiKey && !openaiKey && !claudeKey) {
+    showNotification("API 키를 먼저 설정해주세요. (위의 ⚙️ API 키 설정)", "warning");
+    return;
+  }
+
+  // Calculate token cost based on image count
+  const tokenCost = calculateTokenCost(problem);
+  const costDesc = getTokenCostDescription(tokenCost);
+
+  // Check token balance
+  const currentTokenBalance = await getAcademyTokenBalance();
+  if (currentTokenBalance < tokenCost) {
+    showNotification(`토큰이 부족합니다. (현재: ${currentTokenBalance}개, 필요: ${tokenCost}개)`, "error");
+    return;
+  }
+
+  // Confirm with cost details
+  const confirmUse = confirm(`문제 ${problemIndex + 1}번 AI 해설 생성에 ${tokenCost}토큰이 사용됩니다.\n(${costDesc})\n현재 잔액: ${currentTokenBalance}개\n\n계속하시겠습니까?`);
+  if (!confirmUse) return;
+
+  // 🆕 Open modal immediately
+  openExplanationModal(problemIndex);
+  updateModalProgress(10, '문제 데이터 분석 중...');
+
+  // Update button state to generating
+  const btn = document.querySelector(`.problem-number-btn:nth-child(${problemIndex + 1})`);
+  if (btn) {
+    btn.classList.add('generating');
+    btn.classList.remove('has-explanation');
+  }
+
+  try {
+    updateModalProgress(20, '학생 답안 통계 수집 중...');
+
+    // Get wrong answer statistics
+    const answersSnapshot = await getDocs(studentAnswersCol(setId));
+    const wrongByChoice = {};
+
+    for (let i = 1; i <= problem.choiceCount; i++) {
+      if (i !== problem.correctAnswer) {
+        wrongByChoice[i] = 0;
+      }
+    }
+
+    answersSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const answer = data.answers ? data.answers[problemIndex] : null;
+      if (answer !== null && answer !== problem.correctAnswer && wrongByChoice[answer] !== undefined) {
+        wrongByChoice[answer]++;
+      }
+    });
+
+    updateModalProgress(40, 'AI 해설 생성 중... (최대 30초 소요)');
+
+    // Generate AI explanation
+    const aiResult = await generateProblemExplanation(problem, problemIndex, wrongByChoice);
+
+    updateModalProgress(70, '해설 처리 중...');
+
+    if (aiResult && aiResult.explanation) {
+      problem.explanation = aiResult.explanation;
+      problem.aiSource = aiResult.source;
+
+      // Parse wrong answer explanations
+      const wrongExplanations = parseWrongExplanations(aiResult.explanation, wrongByChoice);
+      if (Object.keys(wrongExplanations).length > 0) {
+        problem.wrongExplanations = wrongExplanations;
+      }
+    }
+
+    // Fallback wrong explanations are intentionally omitted
+
+    updateModalProgress(85, 'Firebase에 저장 중...');
+
+    // Save to Firebase
+    await updateDoc(doc(problemSetsCol(), currentProblemSetId), {
+      problems: problemSetProblems,
+      updatedAt: serverTimestamp()
+    });
+
+    // Deduct 1 token
+    const problemSetName = currentProblemSet?.title || currentProblemSetId;
+    await useAcademyToken(tokenCost, `AI 해설 생성 - ${problemSetName} (문제 ${problemIndex + 1}번, ${costDesc})`);
+
+    updateModalProgress(100, '완료!');
+
+    // Update token display
+    const newBalance = await getAcademyTokenBalance();
+    const tokenDisplay = document.getElementById("currentTokenForSingle");
+    if (tokenDisplay) tokenDisplay.textContent = newBalance;
+
+    // Update button state
+    if (btn) {
+      btn.classList.remove('generating');
+      btn.classList.add('has-explanation');
+    }
+
+    // 🆕 Show explanation in modal (after small delay for progress animation)
+    setTimeout(() => {
+      showExplanationInModal(problem, problemIndex);
+    }, 500);
+
+    // Success notification
+    const sourceText = aiResult?.source ? ` (${aiResult.source} 사용)` : '';
+    showNotification(`문제 ${problemIndex + 1}번 해설 생성 완료!${sourceText}`, "success");
+
+    // Update the grid in background
+    renderProblemNumberGrid();
+
+  } catch (error) {
+    console.error("Single problem explanation error:", error);
+
+    // 🆕 Show error in modal
+    showErrorInModal(error.message);
+
+    // Reset button state
+    if (btn) {
+      btn.classList.remove('generating');
+    }
+  }
+}
+
+// ==================== 해설 모달 함수들 ====================
+
+// Current problem being explained in modal
+let currentModalProblemIndex = null;
+
+// Open explanation modal
+function openExplanationModal(problemIndex) {
+  const modal = document.getElementById('explanationModal');
+  const title = document.getElementById('explanationModalTitle');
+  const progress = document.getElementById('explanationModalProgress');
+  const content = document.getElementById('explanationModalContent');
+  const footer = document.getElementById('explanationModalFooter');
+
+  if (!modal) return;
+
+  currentModalProblemIndex = problemIndex;
+
+  // Set title
+  if (title) title.textContent = `🎯 문제 ${problemIndex + 1}번 AI 해설`;
+
+  // Reset state
+  if (progress) progress.style.display = 'none';
+  if (footer) footer.style.display = 'none';
+  if (content) {
+    content.innerHTML = '<div class="ghost" style="text-align:center; padding:40px;">해설을 불러오는 중...</div>';
+  }
+
+  // Show modal
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+// Close explanation modal
+function closeExplanationModal() {
+  const modal = document.getElementById('explanationModal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+  currentModalProblemIndex = null;
+}
+
+// Update modal progress
+function updateModalProgress(percent, text) {
+  const progress = document.getElementById('explanationModalProgress');
+  const progressFill = document.getElementById('explanationModalProgressFill');
+  const progressText = document.getElementById('explanationModalProgressText');
+
+  if (progress) progress.style.display = 'block';
+  if (progressFill) progressFill.style.width = `${percent}%`;
+  if (progressText) progressText.textContent = text;
+}
+
+// Show explanation in modal
+function showExplanationInModal(problem, problemIndex) {
+  const content = document.getElementById('explanationModalContent');
+  const footer = document.getElementById('explanationModalFooter');
+  const progress = document.getElementById('explanationModalProgress');
+
+  if (progress) progress.style.display = 'none';
+  if (footer) footer.style.display = 'block';
+
+  if (!content) return;
+
+  const explanation = problem.explanation || '해설이 없습니다.';
+  const aiSource = problem.aiSource ? `<span style="font-size:12px; color:#059669; margin-left:8px;">(${problem.aiSource})</span>` : '';
+
+  let wrongExplanationsHtml = '';
+  if (problem.wrongExplanations && Object.keys(problem.wrongExplanations).length > 0) {
+    wrongExplanationsHtml = Object.entries(problem.wrongExplanations)
+      .map(([choice, exp]) => `
+        <div class="explanation-modal-section wrong">
+          <h4>❌ ${choice}번 오답 분석</h4>
+          <p>${exp}</p>
+        </div>
+      `).join('');
+  }
+
+  content.innerHTML = `
+    <div class="explanation-modal-section correct">
+      <h4>✅ 정답: ${problem.correctAnswer}번 ${aiSource}</h4>
+      <p>${explanation}</p>
+    </div>
+    ${wrongExplanationsHtml}
+    ${problem.imageUrl ? `
+      <div class="explanation-modal-section concept">
+        <h4>📷 문제 이미지</h4>
+        <img src="${problem.imageUrl}" style="max-width:100%; border-radius:8px; margin-top:8px;" alt="문제 이미지">
+      </div>
+    ` : ''}
+  `;
+}
+
+// Show error in modal
+function showErrorInModal(errorMessage) {
+  const content = document.getElementById('explanationModalContent');
+  const footer = document.getElementById('explanationModalFooter');
+  const progress = document.getElementById('explanationModalProgress');
+
+  if (progress) progress.style.display = 'none';
+  if (footer) footer.style.display = 'block';
+
+  if (content) {
+    content.innerHTML = `
+      <div style="text-align:center; padding:40px; color:#dc2626;">
+        <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
+        <h4 style="margin:0 0 8px 0;">해설 생성 실패</h4>
+        <p style="margin:0; color:#6b7280;">${errorMessage}</p>
+      </div>
+    `;
+  }
+}
+
+// Regenerate current explanation
+async function regenerateCurrentExplanation() {
+  if (currentModalProblemIndex === null) return;
+
+  const problemIndex = currentModalProblemIndex;
+  closeExplanationModal();
+
+  // Small delay then regenerate
+  setTimeout(() => {
+    generateSingleProblemExplanation(problemIndex);
+  }, 100);
+}
+
+// Close modal on ESC key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeExplanationModal();
+  }
+});
+
+// Close modal on overlay click
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('explanationModal');
+  if (e.target === modal) {
+    closeExplanationModal();
+  }
+});
+
+// Make modal functions globally accessible
+window.openExplanationModal = openExplanationModal;
+window.closeExplanationModal = closeExplanationModal;
+window.regenerateCurrentExplanation = regenerateCurrentExplanation;
+window.generateSingleProblemExplanation = generateSingleProblemExplanation;
 
 // Edit explanation
 function editExplanation(problemIndex, type) {
@@ -10640,21 +11662,38 @@ async function generateAIExplanations() {
     return;
   }
 
-  // 토큰 체크 - 문제 수만큼 토큰 필요
-  const problemsWithImages = problemSetProblems.filter(p => p.imageUrl).length;
-  if (problemsWithImages === 0) {
+  // 토큰 체크 - 이미지 개수 기반 단계별 요금 계산
+  const problemsWithImages = problemSetProblems.filter(p => p.imageUrl);
+  if (problemsWithImages.length === 0) {
     showNotification("이미지가 있는 문제가 없습니다.", "warning");
     return;
   }
 
+  // Calculate total token cost for all problems
+  let totalTokenCost = 0;
+  const tokenBreakdown = { text: 0, oneImage: 0, multiImage: 0 };
+  problemsWithImages.forEach(p => {
+    const cost = calculateTokenCost(p);
+    totalTokenCost += cost;
+    if (cost === 1) tokenBreakdown.text++;
+    else if (cost === 2) tokenBreakdown.oneImage++;
+    else tokenBreakdown.multiImage++;
+  });
+
   const currentTokenBalance = await getAcademyTokenBalance();
-  if (currentTokenBalance < problemsWithImages) {
-    showNotification(`토큰이 부족합니다. (현재: ${currentTokenBalance}개, 필요: ${problemsWithImages}개) 관리자에게 충전을 요청하세요.`, "error");
+  if (currentTokenBalance < totalTokenCost) {
+    showNotification(`토큰이 부족합니다. (현재: ${currentTokenBalance}개, 필요: ${totalTokenCost}개) 관리자에게 충전을 요청하세요.`, "error");
     return;
   }
 
+  // Build cost breakdown message
+  let costBreakdownMsg = "";
+  if (tokenBreakdown.text > 0) costBreakdownMsg += `텍스트: ${tokenBreakdown.text}문제(${tokenBreakdown.text}토큰)\n`;
+  if (tokenBreakdown.oneImage > 0) costBreakdownMsg += `이미지1개: ${tokenBreakdown.oneImage}문제(${tokenBreakdown.oneImage * 2}토큰)\n`;
+  if (tokenBreakdown.multiImage > 0) costBreakdownMsg += `이미지2개+: ${tokenBreakdown.multiImage}문제(${tokenBreakdown.multiImage * 3}토큰)\n`;
+
   // 토큰 사용 확인
-  const confirmUseTokens = confirm(`AI 해설 생성에 ${problemsWithImages}개의 토큰이 사용됩니다.\n현재 잔액: ${currentTokenBalance}개\n\n계속하시겠습니까?`);
+  const confirmUseTokens = confirm(`AI 해설 생성에 총 ${totalTokenCost}토큰이 사용됩니다.\n\n${costBreakdownMsg}\n현재 잔액: ${currentTokenBalance}개\n\n계속하시겠습니까?`);
   if (!confirmUseTokens) {
     return;
   }
@@ -10679,6 +11718,7 @@ async function generateAIExplanations() {
     const totalProblems = problemSetProblems.length;
     let completedProblems = 0;
     let aiUsedSources = { gemini: 0, gpt: 0, claude: 0 };
+    let actualTokensUsed = 0; // Track actual token cost based on images
 
     for (let index = 0; index < problemSetProblems.length; index++) {
       const problem = problemSetProblems[index];
@@ -10721,6 +11761,9 @@ async function generateAIExplanations() {
             else if (aiResult.source === 'gpt') aiUsedSources.gpt++;
             else if (aiResult.source === 'claude') aiUsedSources.claude++;
 
+            // Add token cost for this problem (image-based pricing)
+            actualTokensUsed += calculateTokenCost(problem);
+
             // Parse wrong answer explanations from AI response
             const wrongExplanations = parseWrongExplanations(aiResult.explanation, wrongByChoice);
             if (Object.keys(wrongExplanations).length > 0) {
@@ -10741,14 +11784,7 @@ async function generateAIExplanations() {
         }
       }
 
-      // Generate fallback wrong answer explanations if not set
-      if (!problem.wrongExplanations) problem.wrongExplanations = {};
-
-      Object.entries(wrongByChoice).forEach(([choice, count]) => {
-        if (count > 0 && !problem.wrongExplanations[choice]) {
-          problem.wrongExplanations[choice] = `${choice}번을 선택한 학생이 ${count}명 있습니다. ${choice}번은 오답입니다. 정답인 ${problem.correctAnswer}번과의 차이점을 이해하고, 문제의 핵심 조건을 다시 확인해보세요.`;
-        }
-      });
+      // Fallback wrong explanations are intentionally omitted
 
       completedProblems++;
     }
@@ -10767,12 +11803,12 @@ async function generateAIExplanations() {
       updatedAt: serverTimestamp()
     });
 
-    // 토큰 차감 - 실제 AI 사용량만큼
+    // 토큰 차감 - 이미지 개수 기반 실제 사용량
     const totalAiUsed = aiUsedSources.gemini + aiUsedSources.gpt + aiUsedSources.claude;
-    if (totalAiUsed > 0) {
+    if (actualTokensUsed > 0) {
       try {
         const problemSetName = currentProblemSet?.title || currentProblemSetId;
-        await useAcademyToken(totalAiUsed, `AI 해설 생성 - ${problemSetName} (${totalAiUsed}문제)`);
+        await useAcademyToken(actualTokensUsed, `AI 해설 생성 - ${problemSetName} (${totalAiUsed}문제, 이미지 기반 요금)`);
       } catch (tokenError) {
         console.error("토큰 차감 실패:", tokenError);
         // 토큰 차감 실패해도 해설은 이미 생성됨
@@ -10786,7 +11822,7 @@ async function generateAIExplanations() {
       if (aiUsedSources.gemini > 0) aiStats.push(`Gemini: ${aiUsedSources.gemini}개`);
       if (aiUsedSources.gpt > 0) aiStats.push(`GPT-4o: ${aiUsedSources.gpt}개`);
       if (aiUsedSources.claude > 0) aiStats.push(`Claude: ${aiUsedSources.claude}개`);
-      successMsg += ` (${aiStats.join(", ")}, 토큰 ${totalAiUsed}개 사용)`;
+      successMsg += ` (${aiStats.join(", ")}, 토큰 ${actualTokensUsed}개 사용)`;
     }
     showNotification(successMsg, "success");
 
@@ -10851,6 +11887,20 @@ window.cancelExplanationEdit = cancelExplanationEdit;
 // 토큰 모달 함수들
 // =====================================================
 
+// 내 UID 표시 (슈퍼관리자 설정용)
+function showMyUID() {
+  if (me && me.uid) {
+    const uid = me.uid;
+    navigator.clipboard.writeText(uid).then(() => {
+      alert("UID가 복사되었습니다!\n\n" + uid + "\n\nFirebase > users > 이 UID 문서에\nisSuperAdmin: true 추가하세요.");
+    }).catch(() => {
+      alert("UID: " + uid + "\n\n이 값을 복사해서 Firebase에서 찾으세요.");
+    });
+  } else {
+    alert("로그인 정보를 찾을 수 없습니다.");
+  }
+}
+
 // 토큰 내역 모달 열기
 async function showTokenHistoryModal() {
   const modal = document.getElementById("tokenHistoryModal");
@@ -10900,6 +11950,7 @@ async function showTokenHistoryModal() {
   }
 }
 window.showTokenHistoryModal = showTokenHistoryModal;
+window.showMyUID = showMyUID;
 
 // 토큰 내역 모달 닫기
 function closeTokenHistoryModal() {
@@ -10996,3 +12047,1197 @@ async function executeTokenCharge() {
   }
 }
 window.executeTokenCharge = executeTokenCharge;
+
+// =====================================================
+// 학생별 오답 분석 시스템 (Student Wrong Answer Analysis)
+// =====================================================
+
+let studentAnalysisInitialized = false;
+let studentAnalysisImages = []; // 업로드된 이미지들
+let manualProblemCount = 0; // 수동 입력 문제 번호
+
+// 학생별 분석 탭 초기화
+function initStudentAnalysisTab() {
+  if (studentAnalysisInitialized) {
+    loadStudentAnalysisHistory();
+    return;
+  }
+  studentAnalysisInitialized = true;
+
+  // 학생 목록 로드
+  loadStudentsForAnalysis();
+  const analysisStudentSelect = document.getElementById("studentAnalysisSelect");
+  if (analysisStudentSelect) {
+    analysisStudentSelect.addEventListener("change", () => {
+      const selectedName = analysisStudentSelect.options[analysisStudentSelect.selectedIndex]?.textContent || "-";
+      setWrongAnswerSelectedStudent(selectedName === "학생을 선택하세요" ? "-" : selectedName);
+    });
+  }
+
+  // 입력 방식 탭 전환 이벤트
+  const inputTabs = document.querySelectorAll("#studentAnalysisInputTabs .sub-tab");
+  inputTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      const inputType = tab.dataset.input;
+      switchStudentAnalysisInputTab(inputType);
+    });
+  });
+
+  // 이미지 업로드 영역 이벤트
+  const imageArea = document.getElementById("studentAnalysisImageArea");
+  const imageInput = document.getElementById("studentAnalysisImageFile");
+
+  if (imageArea && imageInput) {
+    imageArea.addEventListener("click", () => imageInput.click());
+    imageArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      imageArea.style.borderColor = "#10b981";
+      imageArea.style.background = "#f0fdf4";
+    });
+    imageArea.addEventListener("dragleave", () => {
+      imageArea.style.borderColor = "#d1d5db";
+      imageArea.style.background = "#f9fafb";
+    });
+    imageArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      imageArea.style.borderColor = "#d1d5db";
+      imageArea.style.background = "#f9fafb";
+      handleStudentAnalysisImages(e.dataTransfer.files);
+    });
+    imageInput.addEventListener("change", (e) => {
+      handleStudentAnalysisImages(e.target.files);
+    });
+  }
+
+  // 수동 입력 - 문제 추가 버튼
+  const addManualBtn = document.getElementById("addManualProblemBtn");
+  if (addManualBtn) {
+    addManualBtn.addEventListener("click", addManualProblem);
+  }
+
+  // AI 분석 요청 버튼
+  const requestBtn = document.getElementById("requestStudentAnalysisBtn");
+  if (requestBtn) {
+    requestBtn.addEventListener("click", requestStudentAnalysis);
+  }
+
+  // 초기 문제 3개 추가
+  for (let i = 0; i < 3; i++) {
+    addManualProblem();
+  }
+
+  // 히스토리 로드
+  loadStudentAnalysisHistory();
+}
+
+// 학생 목록 로드
+async function loadStudentsForAnalysis() {
+  const selectEl = document.getElementById("studentAnalysisSelect");
+  if (!selectEl) return;
+
+  selectEl.innerHTML = '<option value="">학생을 선택하세요</option>';
+
+  try {
+    const academyId = myData?.academyId;
+    if (!academyId) return;
+
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("academyId", "==", academyId), where("role", "==", "student"));
+    const snapshot = await getDocs(q);
+    trackRead();
+
+    const students = [];
+    snapshot.forEach(doc => {
+      students.push({ id: doc.id, ...doc.data() });
+    });
+
+    students.sort((a, b) => (a.nickname || a.name || "").localeCompare(b.nickname || b.name || ""));
+
+    students.forEach(student => {
+      const option = document.createElement("option");
+      option.value = student.id;
+      option.textContent = student.nickname || student.name || "이름 없음";
+      selectEl.appendChild(option);
+    });
+  } catch (error) {
+    console.error("학생 목록 로드 실패:", error);
+  }
+}
+
+// 입력 방식 탭 전환
+function switchStudentAnalysisInputTab(inputType) {
+  // 탭 버튼 활성화
+  document.querySelectorAll("#studentAnalysisInputTabs .sub-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.input === inputType);
+  });
+
+  // 콘텐츠 전환
+  const imageInput = document.getElementById("studentAnalysisImageInput");
+  const manualInput = document.getElementById("studentAnalysisManualInput");
+
+  if (inputType === "image") {
+    imageInput.style.display = "block";
+    manualInput.style.display = "none";
+  } else {
+    imageInput.style.display = "none";
+    manualInput.style.display = "block";
+  }
+}
+
+// 이미지 업로드 처리
+function handleStudentAnalysisImages(files) {
+  if (!files || files.length === 0) return;
+
+  const previewArea = document.getElementById("studentAnalysisImagePreview");
+  const imageList = document.getElementById("studentAnalysisImageList");
+
+  previewArea.style.display = "block";
+
+  Array.from(files).forEach((file, index) => {
+    if (!file.type.startsWith("image/")) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      studentAnalysisImages.push({
+        file: file,
+        dataUrl: e.target.result
+      });
+
+      const imgContainer = document.createElement("div");
+      imgContainer.style.cssText = "position:relative; width:120px; height:120px;";
+      imgContainer.innerHTML = `
+        <img src="${e.target.result}" style="width:100%; height:100%; object-fit:cover; border-radius:8px; border:2px solid #e5e7eb;">
+        <button onclick="removeStudentAnalysisImage(${studentAnalysisImages.length - 1})"
+                style="position:absolute; top:-8px; right:-8px; background:#ef4444; color:white; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-size:14px;">×</button>
+      `;
+      imageList.appendChild(imgContainer);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // 상태 업데이트
+  document.getElementById("studentAnalysisImageStatus").innerHTML = `
+    <span style="font-size:48px;">✅</span>
+    <p style="margin:12px 0 0 0; color:#10b981;">${studentAnalysisImages.length + files.length}장 업로드됨</p>
+  `;
+}
+
+// 이미지 삭제
+function removeStudentAnalysisImage(index) {
+  studentAnalysisImages.splice(index, 1);
+
+  // UI 새로고침
+  const imageList = document.getElementById("studentAnalysisImageList");
+  imageList.innerHTML = "";
+
+  studentAnalysisImages.forEach((img, idx) => {
+    const imgContainer = document.createElement("div");
+    imgContainer.style.cssText = "position:relative; width:120px; height:120px;";
+    imgContainer.innerHTML = `
+      <img src="${img.dataUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:8px; border:2px solid #e5e7eb;">
+      <button onclick="removeStudentAnalysisImage(${idx})"
+              style="position:absolute; top:-8px; right:-8px; background:#ef4444; color:white; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-size:14px;">×</button>
+    `;
+    imageList.appendChild(imgContainer);
+  });
+
+  if (studentAnalysisImages.length === 0) {
+    document.getElementById("studentAnalysisImagePreview").style.display = "none";
+    document.getElementById("studentAnalysisImageStatus").innerHTML = `
+      <span style="font-size:48px;">📷</span>
+      <p style="margin:12px 0 0 0; color:#6b7280;">클릭하거나 시험지 이미지를 여기에 끌어다 놓으세요</p>
+      <p style="margin:4px 0 0 0; font-size:12px; color:#9ca3af;">여러 장 업로드 가능</p>
+    `;
+  } else {
+    document.getElementById("studentAnalysisImageStatus").innerHTML = `
+      <span style="font-size:48px;">✅</span>
+      <p style="margin:12px 0 0 0; color:#10b981;">${studentAnalysisImages.length}장 업로드됨</p>
+    `;
+  }
+}
+window.removeStudentAnalysisImage = removeStudentAnalysisImage;
+
+// 수동 입력 - 문제 추가
+// 문제별 이미지 저장용
+const manualProblemImages = {};
+
+function addManualProblem() {
+  manualProblemCount++;
+  const num = manualProblemCount;
+  const listEl = document.getElementById("manualProblemList");
+
+  const problemDiv = document.createElement("div");
+  problemDiv.id = `manualProblem_${num}`;
+  problemDiv.className = "manual-problem-item";
+  problemDiv.style.cssText = "background:#f9fafb; padding:16px; border-radius:8px; margin-bottom:12px; border:1px solid #e5e7eb;";
+
+  problemDiv.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <strong style="color:#374151;">문제 ${num}번</strong>
+      <button onclick="removeManualProblem(${num})" class="btn" style="padding:4px 8px; font-size:12px; background:#ef4444;">삭제</button>
+    </div>
+
+    <!-- 🆕 문제 이미지 업로드 -->
+    <div style="margin-bottom:12px;">
+      <label style="font-size:13px; color:#6b7280; display:block; margin-bottom:6px;">📷 문제 이미지 (권장)</label>
+      <div id="manualProblemImageArea_${num}" style="border:2px dashed #d1d5db; border-radius:8px; padding:16px; text-align:center; cursor:pointer; background:#fff; transition:all 0.2s;" onclick="document.getElementById('manualProblemImageInput_${num}').click()">
+        <input type="file" id="manualProblemImageInput_${num}" accept="image/*" style="display:none" onchange="handleManualProblemImage(${num}, this)">
+        <div id="manualProblemImageStatus_${num}">
+          <span style="font-size:24px;">📷</span>
+          <p style="margin:4px 0 0 0; font-size:12px; color:#9ca3af;">클릭하여 문제 이미지 업로드</p>
+        </div>
+      </div>
+      <div id="manualProblemImagePreview_${num}" style="display:none; margin-top:8px;">
+        <img id="manualProblemImageImg_${num}" style="max-width:100%; max-height:200px; border-radius:8px; border:1px solid #e5e7eb;">
+        <button onclick="clearManualProblemImage(${num})" class="btn" style="margin-top:8px; padding:4px 8px; font-size:11px; background:#6b7280;">이미지 삭제</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <label style="font-size:13px; color:#6b7280;">문제 내용 (선택 - 이미지 없을 때)</label>
+      <textarea id="manualProblemContent_${num}" class="input" rows="2" placeholder="문제 내용을 입력하세요 (이미지가 있으면 비워도 됩니다)" style="resize:vertical;"></textarea>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div>
+        <label style="font-size:13px; color:#ef4444; font-weight:600;">❌ 학생 답 (오답)</label>
+        <input type="text" id="manualStudentAnswer_${num}" class="input" placeholder="예: ③ 또는 3" style="border-color:#fca5a5;">
+      </div>
+      <div>
+        <label style="font-size:13px; color:#10b981; font-weight:600;">✅ 정답</label>
+        <input type="text" id="manualCorrectAnswer_${num}" class="input" placeholder="예: ② 또는 2" style="border-color:#86efac;">
+      </div>
+    </div>
+  `;
+
+  listEl.appendChild(problemDiv);
+}
+
+// 문제 이미지 업로드 핸들러
+function handleManualProblemImage(num, input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showNotification("이미지 파일만 업로드 가능합니다.", "warning");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result;
+    manualProblemImages[num] = {
+      file: file,
+      base64: base64,
+      mimeType: file.type
+    };
+
+    // Update UI
+    const area = document.getElementById(`manualProblemImageArea_${num}`);
+    const preview = document.getElementById(`manualProblemImagePreview_${num}`);
+    const img = document.getElementById(`manualProblemImageImg_${num}`);
+
+    if (area) area.style.display = 'none';
+    if (preview) preview.style.display = 'block';
+    if (img) img.src = base64;
+
+    showNotification(`문제 ${num}번 이미지 업로드 완료!`, "success");
+  };
+  reader.readAsDataURL(file);
+}
+window.handleManualProblemImage = handleManualProblemImage;
+
+// 문제 이미지 삭제
+function clearManualProblemImage(num) {
+  delete manualProblemImages[num];
+
+  const area = document.getElementById(`manualProblemImageArea_${num}`);
+  const preview = document.getElementById(`manualProblemImagePreview_${num}`);
+  const input = document.getElementById(`manualProblemImageInput_${num}`);
+
+  if (area) area.style.display = 'block';
+  if (preview) preview.style.display = 'none';
+  if (input) input.value = '';
+}
+window.clearManualProblemImage = clearManualProblemImage;
+
+// 수동 입력 - 문제 삭제
+function removeManualProblem(num) {
+  const el = document.getElementById(`manualProblem_${num}`);
+  if (el) el.remove();
+}
+window.removeManualProblem = removeManualProblem;
+
+// AI 분석 요청
+async function requestStudentAnalysis() {
+  const studentId = document.getElementById("studentAnalysisSelect").value;
+  const testName = document.getElementById("studentAnalysisTestName").value.trim();
+
+  if (!studentId) {
+    showNotification("학생을 선택하세요.", "error");
+    return;
+  }
+  if (!testName) {
+    showNotification("시험 이름을 입력하세요.", "error");
+    return;
+  }
+
+  // 토큰 체크
+  const tokenBalance = await getAcademyTokenBalance();
+  if (tokenBalance < 1) {
+    showNotification("토큰이 부족합니다. 관리자에게 충전을 요청하세요.", "error");
+    return;
+  }
+
+  // 입력 방식 확인
+  const isImageMode = document.getElementById("studentAnalysisImageInput").style.display !== "none";
+
+  let analysisData;
+
+  if (isImageMode) {
+    // 이미지 분석
+    if (studentAnalysisImages.length === 0) {
+      showNotification("시험지 이미지를 업로드하세요.", "error");
+      return;
+    }
+    analysisData = await analyzeWithImages(studentId, testName);
+  } else {
+    // 수동 입력 분석
+    const problems = collectManualProblems();
+    if (problems.length === 0) {
+      showNotification("분석할 문제를 입력하세요.", "error");
+      return;
+    }
+    analysisData = await analyzeWithManualInput(studentId, testName, problems);
+  }
+
+  if (analysisData) {
+    // 이미지 분석인 경우 확인 단계를 거침
+    if (isImageMode) {
+      const wrongNumbers = extractWrongProblemNumbers(analysisData.analysis);
+      // 저장을 위해 studentId와 testName도 함께 저장
+      analysisData._studentId = studentId;
+      analysisData._testName = testName;
+      showWrongProblemConfirmation(wrongNumbers, analysisData);
+    } else {
+      // 수동 입력은 바로 결과 표시
+      displayStudentAnalysisResult(analysisData);
+      await saveStudentAnalysisResult(studentId, testName, analysisData);
+      loadStudentAnalysisHistory();
+    }
+  }
+}
+
+// 수동 입력 문제 수집 (이미지 포함)
+function collectManualProblems() {
+  const problems = [];
+  document.querySelectorAll(".manual-problem-item").forEach((item, index) => {
+    const num = item.id.replace("manualProblem_", "");
+    const content = document.getElementById(`manualProblemContent_${num}`)?.value.trim() || "";
+    const studentAnswer = document.getElementById(`manualStudentAnswer_${num}`)?.value.trim() || "";
+    const correctAnswer = document.getElementById(`manualCorrectAnswer_${num}`)?.value.trim() || "";
+
+    // 🆕 이미지 데이터 가져오기
+    const imageData = manualProblemImages[num] || null;
+
+    if (studentAnswer && correctAnswer && studentAnswer !== correctAnswer) {
+      problems.push({
+        number: index + 1,
+        content: content,
+        studentAnswer: studentAnswer,
+        correctAnswer: correctAnswer,
+        image: imageData // 🆕 이미지 포함
+      });
+    }
+  });
+  return problems;
+}
+
+// 이미지 기반 분석
+async function analyzeWithImages(studentId, testName) {
+  const progressEl = document.getElementById("studentAnalysisProgress");
+  const progressFill = document.getElementById("studentAnalysisProgressFill");
+  const progressText = document.getElementById("studentAnalysisProgressText");
+
+  progressEl.style.display = "block";
+  progressFill.style.width = "10%";
+  progressText.textContent = "이미지 분석 중...";
+
+  try {
+    const { geminiKey, openaiKey } = getApiKeys();
+
+    if (!geminiKey && !openaiKey) {
+      showNotification("API 키가 설정되지 않았습니다. 해설 보기 탭에서 API 키를 설정하세요.", "error");
+      progressEl.style.display = "none";
+      return null;
+    }
+
+    // 이미지를 base64로 변환
+    const imageBase64List = studentAnalysisImages.map(img => img.dataUrl.split(",")[1]);
+
+    progressFill.style.width = "30%";
+    progressText.textContent = "AI 분석 요청 중...";
+
+    const results = [];
+
+    if (geminiKey) {
+      try {
+        const res = await withRetry(() => analyzeImageWithGemini(imageBase64List, geminiKey), { label: "Gemini/학생이미지", retries: 2 });
+        results.push(res);
+      } catch (e) {
+        console.error("Gemini 분석 실패:", e);
+      }
+    }
+
+    if (openaiKey) {
+      try {
+        const res = await withRetry(() => analyzeImageWithGPT(studentAnalysisImages.map(img => img.dataUrl), openaiKey), { label: "GPT/학생이미지", retries: 2 });
+        results.push(res);
+      } catch (e) {
+        console.error("GPT 분석 실패:", e);
+      }
+    }
+
+    if (claudeKey) {
+      try {
+        const res = await withRetry(() => analyzeImageWithClaude(studentAnalysisImages.map(img => img.dataUrl), claudeKey), { label: "Claude/학생이미지", retries: 2 });
+        results.push(res);
+      } catch (e) {
+        console.error("Claude 분석 실패:", e);
+      }
+    }
+
+    const best = compareAnalysisResponses(results);
+    const result = best ? { source: best.source, analysis: best.analysis } : null;
+
+    if (!result) {
+      showNotification("AI 분석에 실패했습니다. API 키를 확인하세요.", "error");
+      progressEl.style.display = "none";
+      return null;
+    }
+
+    progressFill.style.width = "80%";
+    progressText.textContent = "결과 처리 중...";
+
+    // 토큰 차감
+    await useAcademyToken(1, `학생 오답 분석 - ${testName}`);
+
+    progressFill.style.width = "100%";
+    progressText.textContent = "완료!";
+
+    setTimeout(() => {
+      progressEl.style.display = "none";
+    }, 1000);
+
+    return result;
+  } catch (error) {
+    console.error("이미지 분석 실패:", error);
+    showNotification("분석 실패: " + error.message, "error");
+    progressEl.style.display = "none";
+    return null;
+  }
+}
+
+// Gemini Vision API로 이미지 분석
+async function analyzeImageWithGemini(imageBase64List, apiKey) {
+  const prompt = `이것은 **채점이 완료된 시험지** 이미지입니다.
+
+⚠️ 중요: 틀린 문제에는 X 표시, 빨간 펜 표시, 또는 오답 표시가 되어 있습니다.
+- **X 표시가 된 문제** = 틀린 문제 (이것만 분석하세요!)
+- O 표시가 된 문제 = 맞은 문제 (무시하세요)
+
+X 표시가 된 **틀린 문제만** 찾아서 분석해주세요.
+
+각 틀린 문제에 대해 다음 형식으로 응답해주세요:
+
+【문제 X번】
+- 학생 답: (학생이 선택한 답 - X 표시 옆에 있는 답)
+- 정답: (실제 정답)
+- 오답 이유: (학생이 왜 이 답을 선택했을 가능성이 있는지 분석)
+- 정답 해설: (정답이 맞는 이유를 상세히 설명)
+
+모든 틀린 문제를 분석한 후, 마지막에 전체 요약을 추가해주세요.
+해설은 **간결하고 이해하기 쉽게** 2~3문장으로 작성하세요.`;
+
+  const parts = [{ text: prompt }];
+
+  imageBase64List.forEach(base64 => {
+    parts.push({
+      inline_data: {
+        mime_type: "image/jpeg",
+        data: base64
+      }
+    });
+  });
+
+  const text = await callGeminiGenerateContent({
+    apiKey,
+    parts,
+    generationConfig: { temperature: 0.3, maxOutputTokens: 4096 },
+    debugLabel: "학생 이미지 분석"
+  });
+
+  return { source: "gemini", analysis: text };
+}
+
+// GPT-4 Vision API로 이미지 분석
+async function analyzeImageWithGPT(imageDataUrls, apiKey) {
+  const prompt = `이것은 **채점이 완료된 시험지** 이미지입니다.
+
+⚠️ 중요: 틀린 문제에는 X 표시, 빨간 펜 표시, 또는 오답 표시가 되어 있습니다.
+- **X 표시가 된 문제** = 틀린 문제 (이것만 분석하세요!)
+- O 표시가 된 문제 = 맞은 문제 (무시하세요)
+
+X 표시가 된 **틀린 문제만** 찾아서 분석해주세요.
+
+각 틀린 문제에 대해 다음 형식으로 응답해주세요:
+
+【문제 X번】
+- 학생 답: (학생이 선택한 답 - X 표시 옆에 있는 답)
+- 정답: (실제 정답)
+- 오답 이유: (학생이 왜 이 답을 선택했을 가능성이 있는지 분석)
+- 정답 해설: (정답이 맞는 이유를 상세히 설명)
+
+모든 틀린 문제를 분석한 후, 마지막에 전체 요약을 추가해주세요.
+해설은 **간결하고 이해하기 쉽게** 2~3문장으로 작성하세요.`;
+
+  const content = [{ type: "text", text: prompt }];
+
+  imageDataUrls.forEach(url => {
+    content.push({
+      type: "image_url",
+      image_url: { url: url }
+    });
+  });
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      messages: [{ role: "user", content }],
+      max_tokens: 4096
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error("OpenAI API 오류: " + response.status);
+  }
+
+  const data = await response.json();
+  const text = data.choices?.[0]?.message?.content || "";
+
+  return { source: "gpt", analysis: text };
+}
+
+// Claude Vision API로 이미지 분석
+async function analyzeImageWithClaude(imageDataUrls, apiKey) {
+  if (!apiKey) throw new Error("Claude API 키가 설정되지 않았습니다.");
+
+  const prompt = `이것은 **채점이 완료된 시험지** 이미지입니다.
+
+⚠️ 중요: 틀린 문제에는 X 표시, 빨간 펜 표시, 또는 오답 표시가 되어 있습니다.
+- **X 표시가 된 문제** = 틀린 문제 (이것만 분석하세요!)
+- O 표시가 된 문제 = 맞은 문제 (무시하세요)
+
+X 표시가 된 **틀린 문제만** 찾아서 분석해주세요.
+
+각 틀린 문제에 대해 다음 형식으로 응답해주세요:
+
+【문제 X번】
+- 학생 답: (학생이 선택한 답 - X 표시 옆에 있는 답)
+- 정답: (실제 정답)
+- 오답 이유: (학생이 왜 이 답을 선택했을 가능성이 있는지 분석)
+- 정답 해설: (정답이 맞는 이유를 상세히 설명)
+
+모든 틀린 문제를 분석한 후, 마지막에 전체 요약을 추가해주세요.
+해설은 **간결하고 이해하기 쉽게** 2~3문장으로 작성하세요.`;
+
+  const text = await callClaudeVisionWithDataUrls(imageDataUrls, prompt);
+  return { source: "claude", analysis: text };
+}
+
+// 수동 입력 기반 분석
+async function analyzeWithManualInput(studentId, testName, problems) {
+  const progressEl = document.getElementById("studentAnalysisProgress");
+  const progressFill = document.getElementById("studentAnalysisProgressFill");
+  const progressText = document.getElementById("studentAnalysisProgressText");
+
+  progressEl.style.display = "block";
+  progressFill.style.width = "20%";
+  progressText.textContent = "AI 분석 요청 중...";
+
+  try {
+    const { geminiKey, openaiKey, claudeKey } = getApiKeys();
+
+    if (!geminiKey && !openaiKey && !claudeKey) {
+      showNotification("API 키가 설정되지 않았습니다. 해설 보기 탭에서 API 키를 설정하세요.", "error");
+      progressEl.style.display = "none";
+      return null;
+    }
+
+    // 🆕 이미지가 있는 문제 확인
+    const hasImages = problems.some(p => p.image);
+    console.log(`📊 분석 요청: ${problems.length}개 문제, 이미지 포함: ${hasImages}`);
+
+    progressFill.style.width = "40%";
+    progressText.textContent = hasImages ? "이미지 분석 중... (최대 30초 소요)" : "텍스트 분석 중...";
+
+    let result = null;
+
+    if (hasImages) {
+      // 🆕 이미지 포함 분석 - Vision API 사용
+      result = await analyzeProblemsWithVision(problems, { geminiKey, openaiKey, claudeKey });
+    } else {
+      // 텍스트만 분석
+      result = await analyzeProblemsTextOnly(problems, { geminiKey, openaiKey, claudeKey });
+    }
+
+    if (!result) {
+      showNotification("AI 분석에 실패했습니다.", "error");
+      progressEl.style.display = "none";
+      return null;
+    }
+
+    progressFill.style.width = "80%";
+    progressText.textContent = "결과 처리 중...";
+
+    // 토큰 차감
+    await useAcademyToken(1, `학생 오답 분석 - ${testName}`);
+
+    progressFill.style.width = "100%";
+    progressText.textContent = "완료!";
+
+    setTimeout(() => {
+      progressEl.style.display = "none";
+    }, 1000);
+
+    result.problems = problems;
+    return result;
+  } catch (error) {
+    console.error("수동 입력 분석 실패:", error);
+    showNotification("분석 실패: " + error.message, "error");
+    progressEl.style.display = "none";
+    return null;
+  }
+}
+
+// 🆕 이미지 포함 Vision API 분석 (일괄 처리로 최적화)
+async function analyzeProblemsWithVision(problems, apiKeys) {
+  const { geminiKey, openaiKey, claudeKey } = apiKeys;
+
+  // 모든 문제 정보를 하나의 프롬프트로 구성
+  const problemsInfo = problems.map(p =>
+    `【문제 ${p.number}번】
+- 학생 답: ${p.studentAnswer} (오답)
+- 정답: ${p.correctAnswer}
+${p.content ? `- 문제 내용: ${p.content}` : "- 문제 내용: 이미지 참조"}`
+  ).join("\n\n");
+
+  const prompt = `${problemsInfo}
+각 문제는 **간결하게** 2~3문장으로: 왜 틀렸는지, 왜 맞는지`;
+
+  // 이미지가 있는 문제들 추출
+  const imagesData = problems.filter(p => p.image).map(p => ({
+    base64: p.image.base64.split(',')[1],
+    mimeType: p.image.mimeType,
+    full: p.image.base64
+  }));
+
+  // 🚀 병렬 처리: 모든 API 동시 호출, 가장 빠른 응답 사용
+  console.log(`⚡ [병렬 분석] ${problems.length}개 문제, ${imagesData.length}개 이미지`);
+
+  const apiCalls = [];
+
+  // Claude Vision
+  if (claudeKey && imagesData.length > 0) {
+    const contentParts = [];
+    imagesData.forEach((img) => {
+      contentParts.push({ type: 'image', source: { type: 'base64', media_type: img.mimeType, data: img.base64 } });
+    });
+    contentParts.push({ type: 'text', text: prompt });
+
+    apiCalls.push(
+      fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': claudeKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 800, messages: [{ role: 'user', content: contentParts }] })
+      }).then(async r => {
+        if (!r.ok) throw new Error('Claude failed');
+        const data = await r.json();
+        console.log(`🟣 [Claude] 완료!`);
+        return { source: "claude", analysis: data.content?.[0]?.text || "" };
+      }).catch(e => { console.log(`🟣 [Claude] 실패`); return null; })
+    );
+  }
+
+  // GPT-4 Vision
+  if (openaiKey && imagesData.length > 0) {
+    const contentParts = [];
+    imagesData.forEach((img) => {
+      contentParts.push({ type: "image_url", image_url: { url: img.full } });
+    });
+    contentParts.push({ type: "text", text: prompt });
+
+    apiCalls.push(
+      fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
+        body: JSON.stringify({ model: "gpt-4o", messages: [{ role: "user", content: contentParts }], max_tokens: 800 })
+      }).then(async r => {
+        if (!r.ok) throw new Error('GPT failed');
+        const data = await r.json();
+        console.log(`🟢 [GPT] 완료!`);
+        return { source: "gpt", analysis: data.choices?.[0]?.message?.content || "" };
+      }).catch(e => { console.log(`🟢 [GPT] 실패`); return null; })
+    );
+  }
+
+  // Gemini Vision
+  if (geminiKey && imagesData.length > 0) {
+    const parts = [];
+    imagesData.forEach((img) => {
+      parts.push({ inline_data: { mime_type: img.mimeType, data: img.base64 } });
+    });
+    parts.push({ text: prompt });
+
+    apiCalls.push(
+      callGeminiGenerateContent({
+        apiKey: geminiKey,
+        parts,
+        generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+        debugLabel: "Vision 병렬"
+      }).then(text => {
+        console.log(`🔷 [Gemini] 완료!`);
+        return { source: "gemini", analysis: text || "" };
+      }).catch(() => {
+        console.log(`🔷 [Gemini] 실패`);
+        return null;
+      })
+    );
+  }
+
+  // 병렬 실행 후 첫 번째 성공 결과 사용
+  let result = null;
+  if (apiCalls.length > 0) {
+    const results = await Promise.all(apiCalls);
+    const best = compareAnalysisResponses(results);
+    result = best ? { source: best.source, analysis: best.analysis } : null;
+    if (result) console.log(`✅ [${result.source}] 응답 사용`);
+  }
+
+  // 이미지 없거나 모두 실패 시 텍스트 분석
+  if (!result) {
+    console.log(`📝 [텍스트] Vision 실패, 텍스트 분석으로 대체...`);
+    result = await analyzeProblemsTextOnly(problems, apiKeys);
+  }
+
+  return result;
+}
+
+// 🆕 단일 문제 텍스트 분석
+async function analyzeOneProblemTextOnly(problem, apiKeys) {
+  const { geminiKey, openaiKey } = apiKeys;
+
+  const prompt = `문제 ${problem.number}번 오답 분석:
+${problem.content ? `문제: ${problem.content}` : ""}
+- 학생 답: ${problem.studentAnswer} (오답)
+- 정답: ${problem.correctAnswer}
+
+오답 이유, 정답 해설, 학습 조언을 **간결하게** 2~3문장으로 제공해주세요.`;
+
+  if (geminiKey) {
+    try {
+      const text = await callGeminiGenerateContent({
+        apiKey: geminiKey,
+        parts: [{ text: prompt }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+        debugLabel: "텍스트 단일"
+      });
+      return text || "";
+    } catch (e) {
+      console.error("Gemini 실패:", e);
+    }
+  }
+
+  if (openaiKey) {
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 500
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || "";
+      }
+    } catch (e) {
+      console.error("GPT 실패:", e);
+    }
+  }
+
+  return null;
+}
+
+// 🆕 텍스트만 분석 (이미지 없음) - 병렬 처리
+async function analyzeProblemsTextOnly(problems, apiKeys) {
+  const { geminiKey, openaiKey, claudeKey } = apiKeys;
+
+  const prompt = `${problems.map(p => `${p.number}번: ${p.content || ""} / 학생:${p.studentAnswer} / 정답:${p.correctAnswer}`).join("\n")}
+각 문제는 **간결하게** 2~3문장으로: 왜 틀렸는지, 왜 맞는지`;
+
+  const apiCalls = [];
+
+  // Gemini
+  if (geminiKey) {
+    apiCalls.push(
+      callGeminiGenerateContent({
+        apiKey: geminiKey,
+        parts: [{ text: prompt }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 1500 },
+        debugLabel: "텍스트 병렬"
+      }).then(text => ({ source: "gemini", analysis: text || "" }))
+        .catch(() => null)
+    );
+  }
+
+  // GPT
+  if (openaiKey) {
+    apiCalls.push(
+      fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
+        body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }], max_tokens: 600 })
+      }).then(async r => {
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        return { source: "gpt", analysis: data.choices?.[0]?.message?.content || "" };
+      }).catch(() => null)
+    );
+  }
+
+  // Claude
+  if (claudeKey) {
+    apiCalls.push(
+      fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': claudeKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 600, messages: [{ role: 'user', content: prompt }] })
+      }).then(async r => {
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        return { source: "claude", analysis: data.content?.[0]?.text || "" };
+      }).catch(() => null)
+    );
+  }
+
+  if (apiCalls.length > 0) {
+    const results = await Promise.all(apiCalls);
+    const best = compareAnalysisResponses(results);
+    return best ? { source: best.source, analysis: best.analysis } : null;
+  }
+  return null;
+}
+
+// 분석 텍스트에서 문제 번호 추출
+function extractWrongProblemNumbers(analysisText) {
+  const numbers = [];
+  // 【문제 X번】 패턴 매칭
+  const regex = /【문제\s*(\d+)\s*번】/g;
+  let match;
+  while ((match = regex.exec(analysisText)) !== null) {
+    const num = parseInt(match[1], 10);
+    if (!numbers.includes(num)) {
+      numbers.push(num);
+    }
+  }
+  return numbers.sort((a, b) => a - b);
+}
+
+// 임시 저장용 변수
+let pendingAnalysisData = null;
+
+// 틀린 문제 확인 UI 표시
+function showWrongProblemConfirmation(numbers, data) {
+  pendingAnalysisData = data;
+
+  const resultArea = document.getElementById("studentAnalysisResultArea");
+  const resultContent = document.getElementById("studentAnalysisResultContent");
+
+  resultArea.style.display = "block";
+
+  if (numbers.length === 0) {
+    resultContent.innerHTML = `
+      <div style="padding:20px; text-align:center;">
+        <p style="color:#059669; font-size:18px; margin-bottom:12px;">✅ 모든 문제를 맞혔습니다!</p>
+        <p style="color:#6b7280;">틀린 문제가 없습니다.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const checkboxes = numbers.map(num => `
+    <label style="display:inline-flex; align-items:center; margin:6px 12px 6px 0; cursor:pointer;">
+      <input type="checkbox" checked value="${num}"
+        style="width:18px; height:18px; margin-right:6px; cursor:pointer;">
+      <span style="font-size:15px;">${num}번</span>
+    </label>
+  `).join("");
+
+  resultContent.innerHTML = `
+    <div style="padding:16px; background:#fef3c7; border-radius:8px; margin-bottom:16px;">
+      <p style="color:#92400e; font-weight:600; margin-bottom:8px;">
+        ⚠️ AI가 인식한 틀린 문제를 확인해주세요
+      </p>
+      <p style="color:#78350f; font-size:13px; margin-bottom:16px;">
+        잘못 인식된 문제가 있다면 체크를 해제하세요. 누락된 문제가 있다면 아래에서 추가하세요.
+      </p>
+
+      <div id="wrongProblemCheckboxes" style="display:flex; flex-wrap:wrap; margin-bottom:16px;">
+        ${checkboxes}
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:13px; color:#78350f; display:block; margin-bottom:6px;">
+          누락된 문제 번호 추가 (쉼표로 구분):
+        </label>
+        <input type="text" id="additionalWrongProblems" placeholder="예: 5, 8, 12"
+          style="width:200px; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;">
+      </div>
+
+      <button onclick="confirmWrongProblems()"
+        style="padding:10px 24px; background:#059669; color:white; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:500;">
+        ✓ 확인하고 해설 보기
+      </button>
+    </div>
+  `;
+
+  resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// 확인 후 결과 필터링 및 표시
+async function confirmWrongProblems() {
+  // 체크된 문제 번호 수집
+  const checkboxes = document.querySelectorAll("#wrongProblemCheckboxes input[type=checkbox]:checked");
+  const confirmedNumbers = Array.from(checkboxes).map(cb => parseInt(cb.value, 10));
+
+  // 추가된 문제 번호 수집
+  const additionalInput = document.getElementById("additionalWrongProblems").value;
+  if (additionalInput) {
+    const additional = additionalInput.split(/[,\s]+/)
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n > 0);
+    additional.forEach(n => {
+      if (!confirmedNumbers.includes(n)) {
+        confirmedNumbers.push(n);
+      }
+    });
+  }
+
+  confirmedNumbers.sort((a, b) => a - b);
+
+  if (confirmedNumbers.length === 0) {
+    showNotification("선택된 문제가 없습니다.", "error");
+    return;
+  }
+
+  // 분석 결과 필터링
+  const filteredData = filterAnalysisByProblems(pendingAnalysisData, confirmedNumbers);
+
+  // 결과 표시
+  displayStudentAnalysisResult(filteredData);
+
+  // 결과 저장
+  if (pendingAnalysisData._studentId && pendingAnalysisData._testName) {
+    await saveStudentAnalysisResult(
+      pendingAnalysisData._studentId,
+      pendingAnalysisData._testName,
+      filteredData
+    );
+    loadStudentAnalysisHistory();
+  }
+}
+
+// 분석 결과에서 확인된 문제만 필터링
+function filterAnalysisByProblems(data, confirmedNumbers) {
+  if (!data || !data.analysis) return data;
+
+  const sections = data.analysis.split(/(?=【문제\s*\d+\s*번】)/);
+  const filteredSections = [];
+
+  sections.forEach(section => {
+    const match = section.match(/【문제\s*(\d+)\s*번】/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (confirmedNumbers.includes(num)) {
+        filteredSections.push(section);
+      }
+    } else if (section.trim() && !section.includes("【문제")) {
+      // 요약 등 다른 섹션은 유지
+      if (filteredSections.length > 0) {
+        filteredSections.push(section);
+      }
+    }
+  });
+
+  // 확인된 문제 중 AI가 분석하지 않은 문제가 있으면 안내 추가
+  const analyzedNumbers = [];
+  filteredSections.forEach(section => {
+    const match = section.match(/【문제\s*(\d+)\s*번】/);
+    if (match) analyzedNumbers.push(parseInt(match[1], 10));
+  });
+
+  const missingNumbers = confirmedNumbers.filter(n => !analyzedNumbers.includes(n));
+  let additionalNote = "";
+  if (missingNumbers.length > 0) {
+    additionalNote = `\n\n📌 참고: ${missingNumbers.join(", ")}번 문제는 AI가 인식하지 못해 해설이 없습니다. 수동으로 입력해주세요.`;
+  }
+
+  return {
+    ...data,
+    analysis: filteredSections.join("") + additionalNote,
+    confirmedProblems: confirmedNumbers
+  };
+}
+
+// 분석 결과 표시
+function displayStudentAnalysisResult(data) {
+  const resultArea = document.getElementById("studentAnalysisResultArea");
+  const resultContent = document.getElementById("studentAnalysisResultContent");
+
+  resultArea.style.display = "block";
+
+  // 분석 텍스트를 HTML로 변환
+  let analysisHtml = data.analysis
+    .replace(/【(.*?)】/g, '<h4 style="color:#059669; margin:16px 0 8px 0; padding:8px; background:#ecfdf5; border-radius:6px;">$1</h4>')
+    .replace(/- (학생 답|정답|오답 이유|정답 해설|학습 조언):/g, '<strong style="color:#374151;">$1:</strong>')
+    .replace(/\n/g, '<br>');
+
+  resultContent.innerHTML = `
+    <div style="margin-bottom:12px; padding:8px; background:#dbeafe; border-radius:6px; font-size:13px;">
+      <span style="color:#1e40af;">🤖 AI 분석 (${data.source === 'gemini' ? 'Gemini' : data.source === 'claude' ? 'Claude' : 'GPT'})</span>
+    </div>
+    <div style="line-height:1.8;">${analysisHtml}</div>
+  `;
+
+  // 결과 영역으로 스크롤
+  resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// 분석 결과 저장
+async function saveStudentAnalysisResult(studentId, testName, data) {
+  try {
+    const academyId = myData?.academyId;
+    if (!academyId) return;
+
+    await addDoc(collection(db, "academies", academyId, "studentAnalysis"), {
+      studentId: studentId,
+      testName: testName,
+      analysis: data.analysis,
+      source: data.source,
+      problems: data.problems || null,
+      createdAt: serverTimestamp(),
+      createdBy: me?.uid
+    });
+    trackWrite();
+
+    showNotification("분석 결과가 저장되었습니다.", "success");
+  } catch (error) {
+    console.error("분석 결과 저장 실패:", error);
+  }
+}
+
+// 분석 히스토리 로드
+async function loadStudentAnalysisHistory() {
+  const listEl = document.getElementById("studentAnalysisHistoryList");
+  if (!listEl) return;
+
+  listEl.innerHTML = '<div class="ghost">로딩 중...</div>';
+
+  try {
+    const academyId = myData?.academyId;
+    if (!academyId) {
+      listEl.innerHTML = '<div class="ghost">학원 정보를 찾을 수 없습니다.</div>';
+      return;
+    }
+
+    const analysisRef = collection(db, "academies", academyId, "studentAnalysis");
+    const q = query(analysisRef, orderBy("createdAt", "desc"), limit(20));
+    const snapshot = await getDocs(q);
+    trackRead();
+
+    if (snapshot.empty) {
+      listEl.innerHTML = '<div class="ghost">저장된 분석 결과가 없습니다.</div>';
+      return;
+    }
+
+    // 학생 정보 로드
+    const studentIds = [...new Set(snapshot.docs.map(doc => doc.data().studentId))];
+    const studentMap = {};
+
+    for (const sid of studentIds) {
+      try {
+        const userDoc = await getDoc(doc(db, "users", sid));
+        if (userDoc.exists()) {
+          studentMap[sid] = userDoc.data().nickname || userDoc.data().name || "알 수 없음";
+        }
+      } catch (e) {
+        studentMap[sid] = "알 수 없음";
+      }
+    }
+
+    let html = "";
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const date = data.createdAt?.toDate?.() || new Date();
+      const dateStr = date.toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      const studentName = studentMap[data.studentId] || "알 수 없음";
+
+      html += `
+        <div class="history-item" style="padding:12px; border-bottom:1px solid #e5e7eb; cursor:pointer;"
+             onclick="showStudentAnalysisDetail('${doc.id}')">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <strong style="color:#374151;">${studentName}</strong>
+              <span style="color:#6b7280; margin-left:8px;">${data.testName}</span>
+            </div>
+            <span style="font-size:12px; color:#9ca3af;">${dateStr}</span>
+          </div>
+        </div>
+      `;
+    });
+
+    listEl.innerHTML = html;
+  } catch (error) {
+    console.error("히스토리 로드 실패:", error);
+    listEl.innerHTML = '<div class="ghost">히스토리를 불러올 수 없습니다.</div>';
+  }
+}
+
+// 분석 상세 보기
+async function showStudentAnalysisDetail(analysisId) {
+  try {
+    const academyId = myData?.academyId;
+    const docRef = doc(db, "academies", academyId, "studentAnalysis", analysisId);
+    const docSnap = await getDoc(docRef);
+    trackRead();
+
+    if (docSnap.exists()) {
+      displayStudentAnalysisResult(docSnap.data());
+    }
+  } catch (error) {
+    console.error("상세 보기 실패:", error);
+  }
+}
+window.showStudentAnalysisDetail = showStudentAnalysisDetail;
