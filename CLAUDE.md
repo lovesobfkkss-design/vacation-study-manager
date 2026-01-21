@@ -1,239 +1,231 @@
-# CLAUDE.md
+# 방학특강 관리프로그램
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 프로젝트 개요
 
-## Project Overview
+학원 학생과 교사를 위한 종합 학습 관리 시스템입니다.
 
-**학습관리 시스템 (Learning Management System)** - A Korean vacation study program management system for teachers and students with AI-powered analytics.
+| 항목 | 내용 |
+|------|------|
+| **프로젝트명** | 방학특강 관리프로그램 |
+| **웹사이트** | https://vacation-check-91a6b.web.app |
+| **Firebase 프로젝트** | vacation-check-91a6b |
+| **최종 업데이트** | 2026-01-21 |
 
-## Technology Stack
+---
 
-- **Frontend**: Vanilla JavaScript (ES6 modules), HTML5, CSS3
-- **Backend**: Firebase (Authentication, Firestore)
-- **Charting**: Chart.js (CDN)
-- **Architecture**: Single-page application with view switching
-- **Language**: Korean UI, Korean variable names in some places
+## 기술 스택
 
-## File Structure
+| 분류 | 기술 |
+|------|------|
+| Frontend | Vanilla JavaScript (ES6+), HTML5, CSS3 |
+| Backend | Firebase (Auth, Firestore) |
+| AI APIs | Gemini, GPT-4V, Claude (이미지 분석) |
+| Charts | Chart.js |
+| PDF | PDF.js |
+| Hosting | Firebase Hosting |
+| Testing | Playwright |
+
+---
+
+## 파일 구조
 
 ```
-├── index.html        # Main HTML with all view templates
-├── script.js         # All JavaScript logic (ES6 module)
-├── styles.css        # All CSS styles
-└── index.html.backup # Backup of original monolithic HTML
+├── index.html          # 메인 HTML (모든 뷰 포함)
+├── script.js           # 모든 JavaScript 로직 (~13,000줄)
+├── styles.css          # 모든 CSS 스타일
+├── firebase.json       # Firebase Hosting 설정
+├── .firebaserc         # Firebase 프로젝트 설정
+├── deploy.bat          # Windows 배포 스크립트
+├── CLAUDE.md           # 이 파일 (개발 가이드)
+└── .moai/              # MoAI-ADK 설정
+    └── config/sections/
+        ├── user.yaml       # 사용자 설정
+        └── language.yaml   # 언어 설정
 ```
 
-## Running the Application
+---
 
-This is a static web application that connects to Firebase:
+## 주요 기능
 
-1. Open `index.html` in a web browser
-2. No build step or dev server required
-3. Must be served over HTTP/HTTPS (not file://) for Firebase to work properly
+### 학생 기능
+- 📚 **학습 타이머**: 실시간 공부 시간 측정
+- ✅ **과제 관리**: 과목별 필터링, 완료 체크
+- 📊 **성적 기록**: 시험 점수 입력 및 추적
+- 📈 **AI 학습 리포트**: 주간/월간 분석 (Gemini/GPT/Claude)
+- 🏆 **랭킹**: 학원 내/전국 랭킹 확인
+- 📷 **오답 분석**: 채점된 시험지 이미지 업로드 → AI가 틀린 문제 해설
 
-**Local development:**
+### 교사(관리자) 기능
+- 👨‍🎓 **학생 관리**: 윈터/외부 구분, 정렬 (윈터→외부→진행률순)
+- 📝 **평가 기록**: 집중력, 숙제, 태도, 이해도 (1-5점)
+- 💬 **상담 메모**: 학생별 메모 기록
+- ⚠️ **위험군 모니터링**: 경고 학생 알림
+- 🔔 **토큰 관리**: 충전, 사용 내역, 잔액 확인
+- 📊 **AI 해설 생성**: 문제 이미지 → AI 해설 생성
+
+---
+
+## 핵심 시스템
+
+### 1. 학생 정렬 시스템 (renderStudentList)
+
+```javascript
+// 정렬 순서:
+// 1. 윈터(winter) 학생 먼저
+// 2. 외부(external) 학생 다음
+// 3. 진행률(progress) 높은 순
+// 4. 공부 시간(liveSeconds) 많은 순
+// 5. 이름 가나다순
+
+const normalizeType = (type) => (type || "").toString().trim().toLowerCase();
+const typeRank = (type) => {
+  const t = normalizeType(type);
+  return t === "winter" ? 0 : t === "external" ? 1 : 2;
+};
+```
+
+### 2. 토큰 요금 시스템
+
+```javascript
+// 이미지 개수 기반 단계별 요금
+function calculateTokenCost(problem) {
+  // 텍스트만: 1토큰
+  // 이미지 1개: 2토큰
+  // 이미지 2개 이상: 3토큰
+}
+```
+
+### 3. AI 이미지 분석 (틀린 문제 인식)
+
+```javascript
+// 채점된 시험지 분석 프롬프트
+// - X 표시 = 틀린 문제 (분석 대상)
+// - O 표시 = 맞은 문제 (무시)
+// 함수: analyzeImageWithGemini, analyzeImageWithGPT, analyzeImageWithClaude
+```
+
+### 4. 틀린 문제 확인 단계
+
+```javascript
+// AI 분석 후 사용자가 확인/수정 가능
+// 1. extractWrongProblemNumbers() - 문제 번호 추출
+// 2. showWrongProblemConfirmation() - 체크박스 UI 표시
+// 3. confirmWrongProblems() - 확인 후 필터링 및 저장
+```
+
+---
+
+## Firestore 컬렉션 구조
+
+```
+users/
+  └── {uid}/
+      ├── role: "student" | "teacher" | "admin"
+      ├── academyId: string
+      ├── managementType: "winter" | "external"
+      └── name, email, grade...
+
+academies/
+  └── {academyId}/
+      ├── tokenBalance: number
+      ├── students/ (subcollection)
+      ├── studentAnalysis/ (subcollection)
+      └── tokenHistory/ (subcollection)
+
+dailyRecords/
+  └── {date}_{uid}/
+      ├── progress: number (0-100)
+      ├── timerRunning: boolean
+      └── seconds: number
+```
+
+---
+
+## 배포
+
+### 방법 1: deploy.bat (권장)
+```
+deploy.bat 더블클릭
+```
+
+### 방법 2: CLI
 ```bash
-# Use any static file server, e.g.:
-python -m http.server 8000
-# or
-npx serve
+firebase login
+firebase deploy --only hosting
 ```
 
-## Architecture
+### 배포 후 확인
+1. 사이트 접속: https://vacation-check-91a6b.web.app
+2. 브라우저 강력 새로고침: `Ctrl + Shift + R`
 
-### User Roles & Views
+---
 
-The application has three main views controlled by `onAuthStateChanged`:
+## 디버깅
 
-1. **Login/Signup View** (`loginView`, `signupView`)
-   - Role selection: student or admin (teacher)
-   - Students must select grade (중1-중3, 고1-고3)
+### 콘솔 로그 확인
+- `F12` → Console 탭
+- `📊 정렬 전:` / `📊 정렬 후:` - 학생 정렬 디버그
+- `📊 분석 요청:` - AI 분석 디버그
 
-2. **Student Dashboard** (`studentView`)
-   - View switching via segment buttons (오늘, 주간 통계, 📊 주간 AI, 📊 월간 AI, 🏆 랭킹)
-   - Study timer that saves to Firestore every 10 seconds
-   - Task management with subject filtering
-   - Test result tracking
+### 자주 발생하는 문제
 
-3. **Admin Dashboard** (`adminView`)
-   - Three tabs: 학생 관리, 전체 비교, 위험군
-   - Modal for individual student management
-   - Teacher evaluation system (집중력, 숙제 완성도, 태도, 이해도)
-   - Counseling memo system
+| 문제 | 해결 |
+|------|------|
+| 정렬 안됨 | 배포 확인 + Ctrl+Shift+R |
+| API 키 오류 | 해설 보기 탭에서 API 키 재설정 |
+| 토큰 부족 | 관리자 → 토큰 충전 |
 
-### Data Model (Firestore)
+---
 
-**Users Collection:**
+## 최근 변경사항 (2026-01-21)
+
+- ✅ 학생 정렬 기능 (윈터→외부→진행률순)
+- ✅ 이미지 기반 토큰 요금제 (1/2/3 토큰)
+- ✅ AI 틀린 문제 인식 개선 (X 표시 인식)
+- ✅ 틀린 문제 확인 단계 추가 (체크박스 UI)
+- ✅ 디버그 로그 추가
+
+---
+
+# Alfred 실행 지침
+
+## 핵심 규칙
+
+- [HARD] **한국어 응답**: conversation_language가 ko이므로 모든 응답은 한국어로
+- [HARD] **변경 후 커밋**: 중요한 변경은 반드시 git commit (다른 작업으로 덮어쓰기 방지)
+- [HARD] **배포 안내**: 코드 수정 후 deploy.bat 실행 안내
+
+## 이 프로젝트 작업 시 주의사항
+
+1. **script.js가 매우 큼** (~13,000줄) - 필요한 부분만 읽기
+2. **Vanilla JS** - React/Vue 아님, DOM 직접 조작
+3. **Firebase 실시간** - Firestore 리스너 사용
+4. **다중 AI API** - Gemini, GPT, Claude 모두 지원
+
+## 자주 수정하는 영역
+
+| 기능 | 위치 (대략적인 줄 번호) |
+|------|------------------------|
+| 학생 정렬 | ~2500줄 (renderStudentList) |
+| 토큰 계산 | ~400줄 (calculateTokenCost) |
+| AI 이미지 분석 | ~12500줄 (analyzeImageWith*) |
+| 틀린 문제 확인 | ~12930줄 (showWrongProblemConfirmation) |
+
+---
+
+## 설정 파일 참조
+
+```yaml
+# .moai/config/sections/user.yaml
+user:
+  name: "Lucy"
+
+# .moai/config/sections/language.yaml
+language:
+  conversation_language: ko
 ```
-users/{userId}/
-  - role: "student" | "admin"
-  - name, nickname, grade, email, parentEmail
-  - daily/{YYYY-MM-DD}/
-    - progress, timerSeconds, totalTasks, completedTasks, lastUpdated
-    - tasks/{taskId}/
-      - subject, title, completed, createdAt, assignedBy
-    - testResults/{testId}/
-      - subject, score, wrongCount, createdAt
-  - evaluations/{evalId}/
-    - date, focus, homework, attitude, understanding, memo
-    - evaluatedBy, evaluatedAt
-  - counseling/{counselId}/
-    - memo, counseledBy, counseledAt
-```
 
-### Key Functions & Their Purposes
+---
 
-**View Management:**
-- `setScope(scope)` - Main view switcher for students
-  - "today" → `todayWrap` (current day tasks/tests)
-  - "week" → `aggWrap` + `renderAggregate(7)` (basic stats only)
-  - "report" → `reportWrap` + `renderWeeklyReport()` (AI analysis)
-  - "month" → `reportWrap` + `renderMonthlyReport()` (AI analysis)
-  - "ranking" → `rankingWrap` + `renderRanking()`
-
-**AI Report Functions:**
-- `renderWeeklyReport()` - Lines 1044+
-  - Analyzes 7 days (Monday-Sunday of current week)
-  - Generates AI summary, weaknesses, subject achievements, routine analysis
-  - Teacher evaluation summary, learning plan, suggestions, strengths
-
-- `renderMonthlyReport()` - Lines 1387+
-  - Analyzes 30 days (rolling month)
-  - Weekly breakdown (4 weeks)
-  - Long-term weakness detection (70%+ low scores = persistent weakness)
-  - Month-over-month trends (first week vs last week comparison)
-  - Attendance rate calculation
-  - Burnout detection (progress drop >15% between weeks)
-
-**Timer System:**
-- `startTimer()`, `pauseTimer()`, `resetTimer()` - Lines 293-317
-- Auto-saves to Firestore every 10 seconds (inline in `startTimer()`)
-- Uses `setInterval` stored in `timerId`
-- Timer state synced with `dailyRef()` document's `timerSeconds` field
-
-**Task Management:**
-- `addTask()` - Student adds own tasks (prompts for subject if "모든 과목" selected)
-- `addTaskToStudent()` - Admin assigns tasks to students from modal
-- `loadTasks(subj)` - Real-time listener using `onSnapshot` for specific subject
-- `recalcProgressAndSave()` - Recalculates progress percentage after task changes
-- Tasks filtered by `currentSubject` ("모든 과목" shows all)
-
-**Admin Functions:**
-- `openStudentModal(uid, userData)` - Opens modal with evaluation/counseling forms
-- `loadCounselingHistory(uid)` - Loads past counseling memos for student
-- `saveEvaluation()` - Saves teacher's daily evaluation (focus, homework, attitude, understanding)
-- `saveCounseling()` - Saves counseling memo with timestamp
-
-### Critical Implementation Details
-
-1. **Global State Variables** (Lines 24-34):
-   ```javascript
-   let me = null;              // Current authenticated user
-   let myData = null;          // Current user's Firestore data
-   let currentSubject = "모든 과목";  // Currently selected subject filter
-   const subjects = new Set(["모든 과목", "국어", "영어", "수학", "과학", "사회"]);
-   let timerSeconds = 0;       // Current timer value in seconds
-   let timerId = null;         // setInterval ID for timer
-   let unsubTasks = null;      // Firestore unsubscribe function for tasks
-   let currentScope = "today"; // Current view scope
-   let currentStudentId = null; // Student ID in admin modal
-   ```
-   Note: `subjects` is a Set that can be dynamically expanded when users add custom subjects via the "+ 과목 추가" button
-
-2. **Date Keys**: All daily data uses `YYYY-MM-DD` format in Asia/Seoul timezone
-   ```javascript
-   const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
-   ```
-
-3. **Firestore References**: Helper functions for common paths
-   - `dailyRef(uid, key)` - Single day document
-   - `dailiesCol(uid)` - Collection of all days
-   - `tasksCol(uid, key)` - Tasks for specific day
-   - `testsCol(uid, key)` - Test results for specific day
-   - `evalsCol(uid)` - Evaluations (not nested by date, but filterable by date field)
-   - `counselCol(uid)` - Counseling records (not nested by date, but have date field)
-
-4. **Progress Calculation**:
-   ```javascript
-   progress = Math.round((completedTasks / totalTasks) * 100)
-   ```
-   Saved to daily document whenever tasks change
-
-5. **Ranking Algorithm**:
-   ```javascript
-   score = studyMinutes + (progress * 10)
-   ```
-   Grouped by grade (중1-중3, 고1-고3)
-
-6. **Admin Tab Switching**:
-   Uses `data-tab` attributes and shows/hides `.admin-tab-content` divs
-
-7. **Modal Management**:
-   - `openStudentModal(uid, userData)` - Opens student detail modal with pre-filled data
-   - `closeModal()` - Closes modal and resets `currentStudentId`
-   - Modal uses fixed positioning with backdrop (`studentModal` div)
-
-8. **Chart.js Memory Management**:
-   - Always destroy existing chart before creating new one: `if (chart) chart.destroy()`
-   - Global chart variables: `scoreChart`, `window.chartAgg1`, `window.chartAgg2`, `window.chartCompare1`, `window.chartCompare2`
-   - Prevents memory leaks when re-rendering charts on view switches
-
-### AI Analysis Logic
-
-**Weekly Report Rules:**
-- Excellent: avgProgress ≥80% AND studyDays ≥6
-- Good: avgProgress ≥80%
-- Moderate: 60% ≤ avgProgress < 80%
-- Needs improvement: avgProgress < 60%
-
-**Monthly Report Enhancements:**
-- Attendance rate: studyDays / 30
-- Persistent weakness: 70%+ of tests < 70 points
-- Burnout detection: week4.avgProgress < week1.avgProgress - 15
-- Irregularity detection: avg weekly progress difference > 20%
-
-**Teacher Evaluation Grades:**
-- 상/중/하 → 3/2/1 (numeric conversion for averaging)
-- Average ≥2.5 → 상
-- Average ≥1.5 → 중
-- Average <1.5 → 하
-
-### Common Modification Patterns
-
-**Adding a new view:**
-1. Add HTML section with unique ID to `index.html`
-2. Add button with `id="seg-{name}"` in segment div
-3. Add event listener: `document.getElementById("seg-{name}").onclick = () => setScope("{name}")`
-4. Add case in `setScope()` function to show the view
-
-**Adding a new AI analysis metric:**
-1. Collect additional data in `renderWeeklyReport()` or `renderMonthlyReport()`
-2. Add calculation logic
-3. Add new section to `reportWrap` div in HTML if needed
-4. Update innerHTML of target div with analysis results
-
-**Modifying Firestore schema:**
-- Update helper functions (dailyRef, etc.) if paths change
-- Update save/load functions for affected features
-- Consider migration path for existing data
-
-## Important Considerations
-
-- **No build process**: Direct browser execution of ES6 modules
-- **Real-time updates**: Extensive use of Firestore `onSnapshot` listeners
-- **Memory management**: Remember to unsubscribe listeners (see `unsubTasks`)
-- **Korean text**: UI is in Korean; maintain consistency
-- **Date handling**: Always use Asia/Seoul timezone for consistency
-- **Firebase security**: API key is exposed in code (expected for web apps, but ensure Firestore rules are properly configured)
-- **Authentication flow**: `onAuthStateChanged` (line 166) is the single entry point that routes users to correct dashboard based on role
-- **Logout cleanup**: Timer interval must be cleared before logout to prevent orphaned intervals
-- **Task deletion**: Uses hard delete (`deleteDoc()`), but code defensively checks for `__deleted` flag in rendering
-
-## Testing
-
-No automated tests. Manual testing workflow:
-1. Create student and admin accounts
-2. Test student: add tasks, start timer, record test results
-3. Test admin: evaluate students, assign tasks, check rankings
-4. Test AI reports: Wait for data accumulation or manipulate Firestore directly
-5. Test edge cases: 0 tasks, no test results, missing evaluations
+Version: 11.0.0
+Last Updated: 2026-01-21
