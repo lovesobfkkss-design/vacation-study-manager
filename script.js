@@ -6361,21 +6361,23 @@ async function sendWeeklyReport(uid, userData) {
     copyModal.id = 'copyEmailModal';
     copyModal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
     copyModal.innerHTML = `
-      <div style="background:#fff;padding:24px;border-radius:16px;max-width:600px;width:100%;max-height:80vh;overflow:auto;">
+      <div style="background:#fff;padding:24px;border-radius:16px;max-width:600px;width:100%;max-height:80vh;display:flex;flex-direction:column;">
         <h3 style="margin:0 0 16px 0;color:#667eea;">📊 주간 학습 리포트 공유</h3>
-        <div style="margin-bottom:12px;">
-          <label style="font-weight:600;font-size:14px;">받는 사람:</label>
-          <input type="text" value="${recipientLabel}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
+        <div style="flex:1; overflow:auto; padding-right:2px;">
+          <div style="margin-bottom:12px;">
+            <label style="font-weight:600;font-size:14px;">받는 사람:</label>
+            <input type="text" value="${recipientLabel}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="font-weight:600;font-size:14px;">제목:</label>
+            <input type="text" id="emailSubjectField" value="${reportData.title}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="font-weight:600;font-size:14px;">내용: <span style="font-weight:400;color:#888;">(직접 수정 가능)</span></label>
+            <textarea id="emailBodyField" style="width:100%;height:300px;padding:10px;border:1px solid #667eea;border-radius:8px;margin-top:4px;background:#fff;font-size:13px;line-height:1.5;resize:none;">${reportData.text}</textarea>
+          </div>
         </div>
-        <div style="margin-bottom:12px;">
-          <label style="font-weight:600;font-size:14px;">제목:</label>
-          <input type="text" id="emailSubjectField" value="${reportData.title}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
-        </div>
-        <div style="margin-bottom:16px;">
-          <label style="font-weight:600;font-size:14px;">내용: <span style="font-weight:400;color:#888;">(직접 수정 가능)</span></label>
-          <textarea id="emailBodyField" style="width:100%;height:300px;padding:10px;border:1px solid #667eea;border-radius:8px;margin-top:4px;background:#fff;font-size:13px;line-height:1.5;resize:none;">${reportData.text}</textarea>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;position:sticky;bottom:0;background:#fff;padding-top:8px;border-top:1px solid #eee;">
           <button id="copyEmailBtn" style="flex:1;min-width:140px;padding:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;">📋 리포트 복사</button>
           <button id="kakaoShareBtn" style="flex:1;min-width:140px;padding:12px;background:#FEE500;color:#3C1E1E;border:none;border-radius:10px;cursor:pointer;font-weight:600;">💬 카톡 보내기</button>
           <button id="smsShareBtn" style="flex:1;min-width:140px;padding:12px;background:#0f9d58;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;">📩 문자 보내기</button>
@@ -6571,21 +6573,23 @@ async function sendParentEmail(uid, userData) {
     copyModal.id = 'copyEmailModal';
     copyModal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
     copyModal.innerHTML = `
-      <div style="background:#fff;padding:24px;border-radius:16px;max-width:600px;width:100%;max-height:80vh;overflow:auto;">
+      <div style="background:#fff;padding:24px;border-radius:16px;max-width:600px;width:100%;max-height:80vh;display:flex;flex-direction:column;">
         <h3 style="margin:0 0 16px 0;color:#667eea;">📨 오늘 학습 요약 공유</h3>
-        <div style="margin-bottom:12px;">
-          <label style="font-weight:600;font-size:14px;">받는 사람:</label>
-          <input type="text" value="${recipientLabel}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
+        <div style="flex:1; overflow:auto; padding-right:2px;">
+          <div style="margin-bottom:12px;">
+            <label style="font-weight:600;font-size:14px;">받는 사람:</label>
+            <input type="text" value="${recipientLabel}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="font-weight:600;font-size:14px;">제목:</label>
+            <input type="text" id="emailSubjectField" value="${shareTitle}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="font-weight:600;font-size:14px;">내용: <span style="font-weight:400;color:#888;">(직접 수정 가능)</span></label>
+            <textarea id="emailBodyField" style="width:100%;height:250px;padding:10px;border:1px solid #667eea;border-radius:8px;margin-top:4px;background:#fff;font-size:13px;line-height:1.5;resize:none;">${summaryText}</textarea>
+          </div>
         </div>
-        <div style="margin-bottom:12px;">
-          <label style="font-weight:600;font-size:14px;">제목:</label>
-          <input type="text" id="emailSubjectField" value="${shareTitle}" readonly style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:4px;background:#f8f9fb;">
-        </div>
-        <div style="margin-bottom:16px;">
-          <label style="font-weight:600;font-size:14px;">내용: <span style="font-weight:400;color:#888;">(직접 수정 가능)</span></label>
-          <textarea id="emailBodyField" style="width:100%;height:250px;padding:10px;border:1px solid #667eea;border-radius:8px;margin-top:4px;background:#fff;font-size:13px;line-height:1.5;resize:none;">${summaryText}</textarea>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;position:sticky;bottom:0;background:#fff;padding-top:8px;border-top:1px solid #eee;">
           <button id="copyEmailBtn" style="flex:1;min-width:140px;padding:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;">📋 요약 복사</button>
           <button id="kakaoShareBtn" style="flex:1;min-width:140px;padding:12px;background:#FEE500;color:#3C1E1E;border:none;border-radius:10px;cursor:pointer;font-weight:600;">💬 카톡 보내기</button>
           <button id="smsShareBtn" style="flex:1;min-width:140px;padding:12px;background:#0f9d58;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;">📩 문자 보내기</button>
