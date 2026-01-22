@@ -131,6 +131,7 @@ let unsubRegistrations = null;
 let unsubAllAcademies = null;
 let allAcademiesRenderVersion = 0; // Race condition 방지용
 let allAcademiesExpanded = false;
+let studentListRenderVersion = 0; // 학생 목록 중복 렌더 방지용
 let unsubAdminComments = null;
 let unsubChatRooms = null;       // 채팅방 목록 리스너
 let unsubChatMessages = null;    // 메시지 리스너
@@ -2509,6 +2510,7 @@ function unsubscribeAllStudentTimers() {
 
 async function renderStudentList() {
   try {
+    const currentVersion = ++studentListRenderVersion;
     const list = document.getElementById("adminList");
     list.innerHTML = "";
 
@@ -2535,6 +2537,7 @@ async function renderStudentList() {
 
     // 점검 요청 목록 로드
     await loadCheckRequests();
+    if (currentVersion !== studentListRenderVersion) return;
 
     // 자기 학원 학생만 표시
     const usersSnap = await getDocs(query(
@@ -2542,6 +2545,7 @@ async function renderStudentList() {
       where("role", "==", "student"),
       where("academyId", "==", myData.academyId || "")
     ));
+    if (currentVersion !== studentListRenderVersion) return;
     trackRead(usersSnap.size || 1);
 
     if (usersSnap.empty) {
@@ -2568,6 +2572,7 @@ async function renderStudentList() {
       }
 
       const dailySnap = await getDoc(dailyRef(uid, getTodayKey()));
+      if (currentVersion !== studentListRenderVersion) return;
       const dailyData = dailySnap.exists() ? dailySnap.data() : {};
 
       const progress = Number(dailyData.progress) || 0;
@@ -2627,6 +2632,8 @@ async function renderStudentList() {
       effort: calcEffortScore(s.progress, s.liveSeconds)
     })));
 
+    if (currentVersion !== studentListRenderVersion) return;
+
     let resortTimer = null;
     const resortStudentListDom = () => {
       const cards = Array.from(list.querySelectorAll(".student-card"));
@@ -2662,6 +2669,7 @@ async function renderStudentList() {
     };
 
     for (const student of students) {
+      if (currentVersion !== studentListRenderVersion) return;
       const { uid, userData, managementType, normalizedType, progress, baseSeconds, liveSeconds, isRunning, startedAtMs } = student;
 
       // 관리 유형 뱃지
@@ -2728,6 +2736,7 @@ async function renderStudentList() {
 
     // 실시간 타이머 구독
       studentTimerUnsubscribers[uid] = onSnapshot(dailyRef(uid, getTodayKey()), (snap) => {
+      if (currentVersion !== studentListRenderVersion) return;
       const data = snap.exists() ? snap.data() : {};
       const baseSecs = Number(data.timerSeconds) || 0;
       const running = !!data.timerRunning;
