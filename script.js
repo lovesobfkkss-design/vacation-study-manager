@@ -94,7 +94,7 @@ window.showNotification = showNotification;
 
 // 카카오 SDK 초기화
 if (window.Kakao && !window.Kakao.isInitialized()) {
-  window.Kakao.init('81a7dfd46e80c803f2b0f7a4e47aedbe');
+  window.Kakao.init('956b978053a198d1de3ea9598bbfc451');
 }
 
 // HTML 엔티티 이스케이프 (XSS 방지)
