@@ -255,6 +255,11 @@
           <button class="ranking-tab active" data-ranking="academy">🏠 우리 학원</button>
           <button class="ranking-tab" data-ranking="national">🌍 전국</button>
         </div>
+        <div class="ranking-tabs" style="margin-top:8px;">
+          <button class="ranking-tab ranking-group-tab" data-group="all">전체</button>
+          <button class="ranking-tab ranking-group-tab active" data-group="winter">🏫 윈터</button>
+          <button class="ranking-tab ranking-group-tab" data-group="external">🏠 외부</button>
+        </div>
 
         <div class="card" style="background:#f8f9fb; margin-top:12px;">
           <h3 class="title">🏆 <span id="myGradeLabel">내 학년</span> 주간 랭킹</h3>
@@ -286,22 +291,43 @@
         </div>
         <div style="display:flex; align-items:center; gap:12px;">
           <button class="btn btn-outline" id="tokenHistoryBtn" onclick="showTokenHistoryModal()" title="토큰 사용 내역">📊 토큰 내역</button>
+          <button class="btn btn-outline" onclick="showMyUID()" title="내 UID 복사">🔑 내 UID</button>
           <button class="btn" id="adminLogoutBtn">로그아웃</button>
         </div>
       </div>
 
+      <div class="admin-overview">
+        <div class="overview-card">
+          <span class="kicker">학생</span>
+          <strong id="overviewStudentCount">-</strong>
+        </div>
+        <div class="overview-card">
+          <span class="kicker">요청</span>
+          <strong id="overviewRequestCount">-</strong>
+        </div>
+        <div class="overview-card">
+          <span class="kicker">점검</span>
+          <strong id="overviewCheckCount">-</strong>
+        </div>
+        <div class="overview-card">
+          <span class="kicker">토큰</span>
+          <strong id="overviewTokenCount">-</strong>
+        </div>
+      </div>
+
       <div class="admin-tabs">
-        <button class="admin-tab active" data-tab="students">📚 학생 관리</button>
-        <button class="admin-tab" data-tab="adminComments">📋 전달사항</button>
-        <button class="admin-tab" data-tab="history">📅 날짜별 현황</button>
-        <button class="admin-tab" data-tab="stats">📊 통계분석</button>
-        <button class="admin-tab" data-tab="registrations">👥 가입 현황</button>
-        <button class="admin-tab" data-tab="analysis">🔍 학생 분석</button>
-        <button class="admin-tab" data-tab="attendance">⏰ 출석 관리</button>
-        <button class="admin-tab" data-tab="wrongAnswer">📝 오답 분석</button>
+        <button class="admin-tab active" data-tab="ops">🧭 운영</button>
+        <button class="admin-tab" data-tab="reports">📊 리포트</button>
+        <button class="admin-tab" data-tab="ai">🤖 오답/AI</button>
       </div>
       
       <!-- 학생 관리 탭 -->
+      <div class="sub-tabs" id="opsSubTabs" style="margin-bottom:20px;">
+        <button class="sub-tab active" data-subtab="students">📚 학생 관리</button>
+        <button class="sub-tab" data-subtab="adminComments">📋 전달사항</button>
+        <button class="sub-tab" data-subtab="attendance">⏰ 출석</button>
+        <button class="sub-tab" data-subtab="registrations">👥 가입</button>
+      </div>
       <div id="adminTabStudents" class="admin-tab-content">
         <!-- 점검 요청 섹션 -->
         <div id="checkRequestSection" style="margin-bottom:24px;">
@@ -358,6 +384,12 @@
         </div>
       </div>
 
+      <div class="sub-tabs" id="reportSubTabs" style="margin-bottom:20px; display:none;">
+        <button class="sub-tab active" data-subtab="stats">📊 통계</button>
+        <button class="sub-tab" data-subtab="analysis">🔍 학생 분석</button>
+        <button class="sub-tab" data-subtab="history">📅 날짜별</button>
+      </div>
+
       <!-- 학생 통계분석 탭 -->
       <div id="adminTabStats" class="admin-tab-content" style="display:none;">
         <!-- 서브탭 -->
@@ -384,6 +416,14 @@
                 <button class="btn" id="adminRankingPeriodWeekly" style="flex:1; background:#22a06b;">📅 주간</button>
                 <button class="btn btn-outline" id="adminRankingPeriodTotal" style="flex:1;">📊 전체 기간</button>
               </div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <div class="kicker" style="margin-bottom:8px;">관리 유형</div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-outline" id="adminRankingGroupAll" style="flex:1;">전체</button>
+              <button class="btn" id="adminRankingGroupWinter" style="flex:1; background:#111827;">🏫 윈터</button>
+              <button class="btn btn-outline" id="adminRankingGroupExternal" style="flex:1;">🏠 외부</button>
             </div>
           </div>
 
@@ -489,8 +529,11 @@
                 총 <strong id="totalAcademyCount">0</strong>개 학원 / <strong id="totalAllStudentCount">0</strong>명 학생
               </div>
             </div>
-            <div class="live-indicator">
-              <span class="live-dot"></span> 실시간
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="btn btn-outline" id="toggleAllAcademiesBtn" style="padding:6px 12px; font-size:12px;">전체 펼치기</button>
+              <div class="live-indicator">
+                <span class="live-dot"></span> 실시간
+              </div>
             </div>
           </div>
           <div id="allAcademiesList">
@@ -664,11 +707,24 @@
 
       <!-- 오답 분석 탭 -->
       <div id="adminTabWrongAnswer" class="admin-tab-content" style="display:none;">
+        <div class="wrong-answer-header">
+          <div class="wrong-answer-steps">
+            <button class="wrong-answer-step active" data-subtab="upload">1 문제 등록</button>
+            <button class="wrong-answer-step" data-subtab="input">2 오답 입력</button>
+            <button class="wrong-answer-step" data-subtab="result">3 해설 확인</button>
+            <button class="wrong-answer-step" data-subtab="studentAnalysis">4 학생 분석</button>
+          </div>
+          <div class="wrong-answer-context">
+            <div>문제 세트: <strong id="wrongAnswerSelectedSetLabel">-</strong></div>
+            <div>학생: <strong id="wrongAnswerSelectedStudentLabel">-</strong></div>
+          </div>
+        </div>
         <!-- 서브탭 -->
         <div class="sub-tabs" id="wrongAnswerSubTabs">
           <button class="sub-tab active" data-subtab="upload">📤 문제 등록</button>
           <button class="sub-tab" data-subtab="input">✏️ 오답 입력</button>
           <button class="sub-tab" data-subtab="result">📊 해설 보기</button>
+          <button class="sub-tab" data-subtab="studentAnalysis">🎯 학생별 분석</button>
         </div>
 
         <!-- Step 1: 문제 등록 -->
@@ -685,14 +741,15 @@
               <input id="quickProblemSetName" class="input" type="text" placeholder="예: 고1 모의고사 Day 1" style="background:rgba(255,255,255,0.95); color:#333;">
             </div>
 
-            <!-- PDF 업로드 (드래그 앤 드롭 지원) -->
+            <!-- 시험지 파일 업로드 (PDF + 이미지 지원) -->
             <div class="field" style="margin-bottom:12px;">
-              <label style="color:white;">📄 시험지 PDF 업로드 (클릭 또는 드래그)</label>
+              <label style="color:white;">📄 시험지 파일 업로드 (PDF, JPG, PNG)</label>
               <div id="quickPdfUploadArea" style="border:2px dashed rgba(255,255,255,0.5); border-radius:12px; padding:24px; text-align:center; cursor:pointer; background:rgba(255,255,255,0.1); transition:all 0.2s;">
-                <input type="file" id="quickPdfInput" accept="application/pdf" style="display:none">
+                <input type="file" id="quickPdfInput" accept="application/pdf,image/jpeg,image/png,image/gif,image/webp" style="display:none">
                 <div id="quickPdfStatus">
                   <span style="font-size:40px;">📄</span>
-                  <p style="margin:8px 0 0 0; font-size:14px;">클릭하거나 PDF를 여기에 끌어다 놓으세요</p>
+                  <p style="margin:8px 0 0 0; font-size:14px;">클릭하거나 파일을 여기에 끌어다 놓으세요</p>
+                  <p style="margin:4px 0 0 0; font-size:12px; opacity:0.8;">PDF, JPG, PNG 지원</p>
                 </div>
               </div>
             </div>
@@ -913,6 +970,27 @@
                   </div>
                 </div>
 
+                <!-- 🆕 문제 번호 클릭 해설 -->
+                <div class="card" style="background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border:2px solid #86efac; margin-bottom:20px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <h3 class="title" style="margin:0;">🎯 문제별 AI 해설 생성</h3>
+                    <span id="singleExplanationTokenInfo" style="font-size:13px; color:#059669; font-weight:600;">
+                      문제당 1토큰 | 잔액: <span id="currentTokenForSingle">-</span>개
+                    </span>
+                  </div>
+                  <p style="font-size:13px; color:#047857; margin-bottom:16px;">해설이 필요한 문제 번호를 클릭하세요. AI가 전체 해설을 자동 생성합니다.</p>
+                  <div id="problemNumberGrid" style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <!-- 문제 번호 버튼들이 여기에 표시됨 -->
+                    <div class="ghost">문제 세트를 선택하면 문제 번호가 표시됩니다.</div>
+                  </div>
+                  <div id="singleExplanationProgress" style="display:none; margin-top:12px;">
+                    <div class="progress-bar">
+                      <div class="progress-fill" id="singleProgressFill"></div>
+                    </div>
+                    <p id="singleProgressText" style="font-size:12px; text-align:center; margin-top:8px; color:#059669;"></p>
+                  </div>
+                </div>
+
                 <!-- 오답 통계 요약 -->
                 <div class="card" style="background:linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border:2px solid #fcd34d; margin-bottom:20px;">
                   <h3 class="title">📊 오답 통계</h3>
@@ -933,6 +1011,93 @@
                   <p class="ghost">왼쪽에서 문제 세트를 선택하세요</p>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: 학생별 오답 분석 -->
+        <div id="studentAnalysisContent" class="wrong-answer-sub-content" style="display:none;">
+          <div class="card" style="background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:white; margin-bottom:20px;">
+            <h3 class="title" style="color:white;">🎯 학생별 오답 분석</h3>
+            <p style="opacity:0.9; margin-bottom:16px;">학생의 시험지를 분석하여 오답 이유와 정답 해설을 AI가 자동 생성합니다.</p>
+
+            <!-- 학생 선택 -->
+            <div class="field" style="margin-bottom:16px;">
+              <label style="color:white;">학생 선택</label>
+              <select id="studentAnalysisSelect" class="input" style="background:rgba(255,255,255,0.95); color:#333;">
+                <option value="">학생을 선택하세요</option>
+              </select>
+            </div>
+
+            <!-- 과목/시험 이름 -->
+            <div class="field" style="margin-bottom:16px;">
+              <label style="color:white;">시험 이름</label>
+              <input id="studentAnalysisTestName" class="input" type="text" placeholder="예: 영어 중간고사, 수학 모의고사" style="background:rgba(255,255,255,0.95); color:#333;">
+            </div>
+          </div>
+
+          <!-- 입력 방식 선택 탭 -->
+          <div class="card">
+            <div class="sub-tabs" id="studentAnalysisInputTabs" style="margin-bottom:20px;">
+              <button class="sub-tab active" data-input="image">📷 시험지 이미지 업로드</button>
+              <button class="sub-tab" data-input="manual">✏️ 수동 입력</button>
+            </div>
+
+            <!-- 이미지 업로드 방식 -->
+            <div id="studentAnalysisImageInput">
+              <div id="studentAnalysisImageArea" style="border:2px dashed #d1d5db; border-radius:12px; padding:40px; text-align:center; cursor:pointer; background:#f9fafb; transition:all 0.2s;">
+                <input type="file" id="studentAnalysisImageFile" accept="image/*" style="display:none" multiple>
+                <div id="studentAnalysisImageStatus">
+                  <span style="font-size:48px;">📷</span>
+                  <p style="margin:12px 0 0 0; color:#6b7280;">클릭하거나 시험지 이미지를 여기에 끌어다 놓으세요</p>
+                  <p style="margin:4px 0 0 0; font-size:12px; color:#9ca3af;">여러 장 업로드 가능</p>
+                </div>
+              </div>
+              <div id="studentAnalysisImagePreview" style="display:none; margin-top:16px;">
+                <div style="display:flex; flex-wrap:wrap; gap:12px;" id="studentAnalysisImageList"></div>
+              </div>
+            </div>
+
+            <!-- 수동 입력 방식 -->
+            <div id="studentAnalysisManualInput" style="display:none;">
+              <div style="margin-bottom:16px;">
+                <p style="font-size:14px; color:#6b7280; margin-bottom:12px;">문제별로 학생 답안과 정답을 입력하세요. AI가 오답 이유와 정답 해설을 생성합니다.</p>
+                <button class="btn" id="addManualProblemBtn" style="background:#10b981;">+ 문제 추가</button>
+              </div>
+              <div id="manualProblemList">
+                <!-- 문제 입력 폼들이 여기에 추가됨 -->
+              </div>
+            </div>
+
+            <!-- 분석 요청 버튼 -->
+            <div style="margin-top:20px; padding-top:20px; border-top:1px solid #e5e7eb;">
+              <button class="btn" id="requestStudentAnalysisBtn" style="width:100%; background:linear-gradient(135deg, #10b981 0%, #059669 100%); padding:16px; font-size:16px;">
+                🤖 AI 오답 분석 시작
+              </button>
+              <div id="studentAnalysisProgress" style="display:none; margin-top:12px;">
+                <div class="progress-bar">
+                  <div class="progress-fill" id="studentAnalysisProgressFill"></div>
+                </div>
+                <p id="studentAnalysisProgressText" style="font-size:12px; text-align:center; margin-top:8px; color:#6b7280;"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 분석 결과 표시 영역 -->
+          <div id="studentAnalysisResultArea" style="display:none; margin-top:20px;">
+            <div class="card" style="background:#f0fdf4; border:2px solid #86efac;">
+              <h3 class="title">📋 오답 분석 결과</h3>
+              <div id="studentAnalysisResultContent">
+                <!-- AI 분석 결과가 여기에 표시됨 -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 저장된 분석 히스토리 -->
+          <div class="card" style="margin-top:20px;">
+            <h3 class="title">📚 분석 히스토리</h3>
+            <div id="studentAnalysisHistoryList">
+              <div class="ghost">저장된 분석 결과가 없습니다.</div>
             </div>
           </div>
         </div>
@@ -1428,6 +1593,75 @@
       </div>
     </div>
   </div>
+
+  <!-- 🆕 AI 해설 모달 -->
+  <div id="explanationModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width:700px; max-height:90vh; overflow-y:auto;">
+      <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid #e5e7eb;">
+        <h3 id="explanationModalTitle" style="margin:0; font-size:20px;">🎯 문제 1번 AI 해설</h3>
+        <button onclick="closeExplanationModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#6b7280;">&times;</button>
+      </div>
+
+      <!-- 진행 상태 -->
+      <div id="explanationModalProgress" style="display:none; margin-bottom:20px;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+          <div class="spinner" style="width:24px; height:24px; border:3px solid #e5e7eb; border-top-color:#10b981; border-radius:50%; animation:spin 1s linear infinite;"></div>
+          <span id="explanationModalProgressText" style="color:#059669; font-weight:600;">AI 해설 생성 중...</span>
+        </div>
+        <div class="progress-bar" style="height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden;">
+          <div id="explanationModalProgressFill" class="progress-fill" style="width:0%; height:100%; background:linear-gradient(90deg, #10b981, #059669); transition:width 0.3s;"></div>
+        </div>
+      </div>
+
+      <!-- 해설 내용 -->
+      <div id="explanationModalContent">
+        <div class="ghost" style="text-align:center; padding:40px;">해설을 불러오는 중...</div>
+      </div>
+
+      <!-- 하단 버튼 -->
+      <div id="explanationModalFooter" style="display:none; margin-top:20px; padding-top:16px; border-top:1px solid #e5e7eb;">
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button onclick="closeExplanationModal()" class="btn" style="background:#e2e8f0; color:#333;">닫기</button>
+          <button id="regenerateExplanationBtn" onclick="regenerateCurrentExplanation()" class="btn" style="background:linear-gradient(135deg, #10b981, #059669);">🔄 다시 생성 (1토큰)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .explanation-modal-section {
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .explanation-modal-section h4 {
+      margin: 0 0 8px 0;
+      font-size: 15px;
+      color: #374151;
+    }
+    .explanation-modal-section p {
+      margin: 0;
+      line-height: 1.7;
+      color: #4b5563;
+      white-space: pre-wrap;
+    }
+    .explanation-modal-section.correct {
+      background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+      border-left: 4px solid #10b981;
+    }
+    .explanation-modal-section.wrong {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      border-left: 4px solid #ef4444;
+    }
+    .explanation-modal-section.concept {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      border-left: 4px solid #3b82f6;
+    }
+  </style>
 
   <script type="module" src="script.js"></script>
 </body>

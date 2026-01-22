@@ -1468,14 +1468,38 @@ async function renderAggregate(days) {
 
 // 랭킹 시스템
 let currentRankingType = "academy"; // "academy" 또는 "national"
+let currentRankingGroup = "winter"; // "all" | "winter" | "external"
+
+function normalizeManagementType(type) {
+  const t = (type || "").toString().trim().toLowerCase();
+  if (t === "winter" || t === "윈터") return "winter";
+  if (t === "external" || t === "외부") return "external";
+  return t || "winter";
+}
+
+function matchesRankingGroup(type, group) {
+  if (group === "all") return true;
+  return normalizeManagementType(type) === group;
+}
 
 // 랭킹 탭 이벤트 리스너 설정
 function setupRankingTabs() {
-  document.querySelectorAll(".ranking-tab").forEach(tab => {
+  document.querySelectorAll(".ranking-tab:not(.ranking-group-tab)").forEach(tab => {
     tab.onclick = () => {
-      document.querySelectorAll(".ranking-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".ranking-tab:not(.ranking-group-tab)").forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       currentRankingType = tab.dataset.ranking;
+      renderRanking();
+    };
+  });
+}
+
+function setupRankingGroupTabs() {
+  document.querySelectorAll(".ranking-group-tab").forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll(".ranking-group-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      currentRankingGroup = tab.dataset.group;
       renderRanking();
     };
   });
@@ -1493,6 +1517,7 @@ async function renderRanking() {
 
   // 랭킹 탭 설정
   setupRankingTabs();
+  setupRankingGroupTabs();
 
   // 주간 데이터 수집
   const today = new Date();
@@ -1517,20 +1542,26 @@ async function renderRanking() {
       where("role", "==", "student"),
       where("academyId", "==", myData.academyId || "")
     ));
-    document.getElementById("rankingSubtitle").textContent = `${myData.academyName || "우리 학원"} | 점수 = 공부시간(분) + 진행률 × 10`;
+    const groupLabel = currentRankingGroup === "winter" ? "윈터" : currentRankingGroup === "external" ? "외부" : "전체";
+    document.getElementById("rankingSubtitle").textContent = `${myData.academyName || "우리 학원"} | ${groupLabel} | 점수 = 공부시간(분) + 진행률 × 70`;
   } else {
     // 전국 전체 학생
     usersSnap = await getDocs(query(
       collection(db, "users"),
       where("role", "==", "student")
     ));
-    document.getElementById("rankingSubtitle").textContent = "전국 | 점수 = 공부시간(분) + 진행률 × 10";
+    const groupLabel = currentRankingGroup === "winter" ? "윈터" : currentRankingGroup === "external" ? "외부" : "전체";
+    document.getElementById("rankingSubtitle").textContent = `전국 | ${groupLabel} | 점수 = 공부시간(분) + 진행률 × 70`;
   }
 
   const rankings = [];
 
   for (const userDoc of usersSnap.docs) {
     const userData = userDoc.data();
+    const managementType = userData.managementType || "winter";
+    if (!matchesRankingGroup(managementType, currentRankingGroup)) {
+      continue;
+    }
 
     let totalTime = 0;
     let totalProgress = 0;
@@ -1553,7 +1584,7 @@ async function renderRanking() {
 
     const avgProgress = count > 0 ? Math.round(totalProgress / count) : 0;
     const minutes = Math.floor(totalTime / 60);
-    const score = minutes + (avgProgress * 10);
+    const score = minutes + (avgProgress * 70);
 
     // 배지 계산
     const badges = [];
@@ -1597,7 +1628,9 @@ async function renderRanking() {
       myBadgesDiv.appendChild(span);
     });
   } else {
-    myBadgesDiv.innerHTML = '<span class="ghost">아직 획득한 배지가 없습니다</span>';
+    myBadgesDiv.innerHTML = myRank > 0
+      ? '<span class="ghost">아직 획득한 배지가 없습니다</span>'
+      : '<span class="ghost">필터에 해당하는 랭킹이 없습니다</span>';
   }
 
   // 랭킹 리스트 렌더링
@@ -1647,6 +1680,7 @@ async function renderRanking() {
 // ========== 관리자용 랭킹 시스템 ==========
 let adminRankingScope = "academy"; // "academy" | "national"
 let adminRankingPeriod = "weekly"; // "weekly" | "total"
+let adminRankingGroup = "winter"; // "all" | "winter" | "external"
 let adminRankingEventsInitialized = false;
 
 function setupAdminRankingEvents() {
@@ -1690,6 +1724,40 @@ function setupAdminRankingEvents() {
     renderAdminRanking();
   });
 
+  // 관리 유형 선택 (전체 / 윈터 / 외부)
+  document.getElementById("adminRankingGroupAll").addEventListener("click", () => {
+    adminRankingGroup = "all";
+    document.getElementById("adminRankingGroupAll").classList.remove("btn-outline");
+    document.getElementById("adminRankingGroupAll").style.background = "#111827";
+    document.getElementById("adminRankingGroupWinter").classList.add("btn-outline");
+    document.getElementById("adminRankingGroupWinter").style.background = "";
+    document.getElementById("adminRankingGroupExternal").classList.add("btn-outline");
+    document.getElementById("adminRankingGroupExternal").style.background = "";
+    renderAdminRanking();
+  });
+
+  document.getElementById("adminRankingGroupWinter").addEventListener("click", () => {
+    adminRankingGroup = "winter";
+    document.getElementById("adminRankingGroupWinter").classList.remove("btn-outline");
+    document.getElementById("adminRankingGroupWinter").style.background = "#111827";
+    document.getElementById("adminRankingGroupAll").classList.add("btn-outline");
+    document.getElementById("adminRankingGroupAll").style.background = "";
+    document.getElementById("adminRankingGroupExternal").classList.add("btn-outline");
+    document.getElementById("adminRankingGroupExternal").style.background = "";
+    renderAdminRanking();
+  });
+
+  document.getElementById("adminRankingGroupExternal").addEventListener("click", () => {
+    adminRankingGroup = "external";
+    document.getElementById("adminRankingGroupExternal").classList.remove("btn-outline");
+    document.getElementById("adminRankingGroupExternal").style.background = "#111827";
+    document.getElementById("adminRankingGroupAll").classList.add("btn-outline");
+    document.getElementById("adminRankingGroupAll").style.background = "";
+    document.getElementById("adminRankingGroupWinter").classList.add("btn-outline");
+    document.getElementById("adminRankingGroupWinter").style.background = "";
+    renderAdminRanking();
+  });
+
   adminRankingEventsInitialized = true;
 }
 
@@ -1700,7 +1768,9 @@ async function renderAdminRanking() {
   // 타이틀 업데이트
   const scopeText = adminRankingScope === "academy" ? "우리 학원" : "전국";
   const periodText = adminRankingPeriod === "weekly" ? "주간" : "전체 기간";
-  document.getElementById("adminRankingTitle").textContent = `🏆 ${scopeText} ${periodText} 랭킹`;
+  const groupText = adminRankingGroup === "winter" ? "윈터" : adminRankingGroup === "external" ? "외부" : "전체";
+  document.getElementById("adminRankingTitle").textContent = `🏆 ${scopeText} ${periodText} 랭킹 (${groupText})`;
+  document.getElementById("adminRankingSubtitle").textContent = `점수 = 공부시간(분) + 진행률 × 70 | ${groupText}`;
 
   try {
     // 학생 쿼리
@@ -1735,6 +1805,10 @@ async function renderAdminRanking() {
     for (const userDoc of snap.docs) {
       const userData = userDoc.data();
       const uid = userDoc.id;
+      const managementType = userData.managementType || "winter";
+      if (!matchesRankingGroup(managementType, adminRankingGroup)) {
+        continue;
+      }
 
       let totalSeconds = 0;
       let totalProgress = 0;
@@ -1770,7 +1844,7 @@ async function renderAdminRanking() {
 
       const avgProgress = progressCount > 0 ? Math.round(totalProgress / progressCount) : 0;
       const studyMinutes = Math.round(totalSeconds / 60);
-      const score = studyMinutes + (avgProgress * 10);
+      const score = studyMinutes + (avgProgress * 70);
 
       if (totalSeconds > 0 || progressCount > 0) {
         rankings.push({
@@ -2438,6 +2512,22 @@ async function renderStudentList() {
     const list = document.getElementById("adminList");
     list.innerHTML = "";
 
+    // 관리 유형 정규화/정렬/점수 계산
+    const normalizeType = (type) => (type || "").toString().trim().toLowerCase();
+    const isWinterType = (type) => {
+      const t = normalizeType(type);
+      return t === "winter" || t === "윈터";
+    };
+    const isExternalType = (type) => {
+      const t = normalizeType(type);
+      return t === "external" || t === "외부";
+    };
+    const typeRank = (type) => (isWinterType(type) ? 0 : isExternalType(type) ? 1 : 2);
+    const calcEffortScore = (progress, liveSeconds) => {
+      const minutes = Math.round(Math.max(0, Number(liveSeconds) || 0) / 60);
+      return minutes + (Number(progress) || 0) * 10;
+    };
+
     // 기존 타이머 구독 해제
     unsubscribeAllStudentTimers();
     stopAdminTimerTick();
@@ -2467,7 +2557,13 @@ async function renderStudentList() {
 
       // 관리 유형 필터링 (기본값: winter)
       const managementType = userData.managementType || "winter";
-      if (currentManagementFilter !== "all" && managementType !== currentManagementFilter) {
+      const normalizedType = isWinterType(managementType)
+        ? "winter"
+        : isExternalType(managementType)
+          ? "external"
+          : normalizeType(managementType);
+      const normalizedFilter = normalizeType(currentManagementFilter);
+      if (normalizedFilter !== "all" && normalizedType !== normalizedFilter) {
         continue;
       }
 
@@ -2475,13 +2571,13 @@ async function renderStudentList() {
       const dailyData = dailySnap.exists() ? dailySnap.data() : {};
 
       const progress = Number(dailyData.progress) || 0;
-      const seconds = getEffectiveTimerSecondsForKey(dailyData, getTodayKey());
+      const baseSeconds = Number(dailyData.timerSeconds) || 0;
       const isRunning = dailyData.timerRunning || false;
 
       let startedAtMs = getTimestampMs(dailyData.timerStartedAt);
       if (isRunning && !startedAtMs) startedAtMs = Date.now();
       const liveSeconds = getLiveSeconds(
-        seconds,
+        baseSeconds,
         startedAtMs,
         isRunning
       );
@@ -2490,33 +2586,31 @@ async function renderStudentList() {
         uid,
         userData,
         managementType,
+        normalizedType,
         progress,
+        baseSeconds,
         liveSeconds,
         isRunning,
         startedAtMs
       });
     }
 
-    // Normalize managementType for safe comparison (handles case, whitespace)
-    const normalizeType = (type) => (type || "").toString().trim().toLowerCase();
-    const typeRank = (type) => {
-      const t = normalizeType(type);
-      return t === "winter" ? 0 : t === "external" ? 1 : 2;
-    };
-
     // DEBUG: 정렬 전 상태 확인
     console.log("📊 정렬 전:", students.map(s => ({
       name: s.userData?.name,
       type: s.managementType,
-      typeNorm: normalizeType(s.managementType),
+      typeNorm: s.normalizedType,
       rank: typeRank(s.managementType),
-      progress: s.progress
+      progress: s.progress,
+      effort: calcEffortScore(s.progress, s.liveSeconds)
     })));
 
-    // Sort: 1) Winter first, 2) External second, 3) Higher progress, 4) More study time, 5) Korean name order
+    // Sort: 1) Winter first, 2) External second, 3) Higher effort, 4) Higher progress, 5) More study time, 6) Korean name order
     students.sort((a, b) => {
       const typeDiff = typeRank(a.managementType) - typeRank(b.managementType);
       if (typeDiff !== 0) return typeDiff;
+      const scoreDiff = calcEffortScore(b.progress, b.liveSeconds) - calcEffortScore(a.progress, a.liveSeconds);
+      if (scoreDiff !== 0) return scoreDiff;
       if (b.progress !== a.progress) return b.progress - a.progress;
       if (b.liveSeconds !== a.liveSeconds) return b.liveSeconds - a.liveSeconds;
       const nameA = (a.userData?.name || "");
@@ -2529,20 +2623,61 @@ async function renderStudentList() {
       name: s.userData?.name,
       type: s.managementType,
       rank: typeRank(s.managementType),
-      progress: s.progress
+      progress: s.progress,
+      effort: calcEffortScore(s.progress, s.liveSeconds)
     })));
 
+    let resortTimer = null;
+    const resortStudentListDom = () => {
+      const cards = Array.from(list.querySelectorAll(".student-card"));
+      cards.sort((a, b) => {
+        const typeDiff = typeRank(a.dataset.type) - typeRank(b.dataset.type);
+        if (typeDiff !== 0) return typeDiff;
+        const aProgress = Number(a.dataset.progress) || 0;
+        const bProgress = Number(b.dataset.progress) || 0;
+        const aBase = Number(a.dataset.baseSeconds) || 0;
+        const bBase = Number(b.dataset.baseSeconds) || 0;
+        const aStartedAt = Number(a.dataset.startedAtMs) || null;
+        const bStartedAt = Number(b.dataset.startedAtMs) || null;
+        const aRunning = a.dataset.running === "true";
+        const bRunning = b.dataset.running === "true";
+        const aLive = getLiveSeconds(aBase, aStartedAt, aRunning);
+        const bLive = getLiveSeconds(bBase, bStartedAt, bRunning);
+        const scoreDiff = calcEffortScore(bProgress, bLive) - calcEffortScore(aProgress, aLive);
+        if (scoreDiff !== 0) return scoreDiff;
+        if (bProgress !== aProgress) return bProgress - aProgress;
+        if (bLive !== aLive) return bLive - aLive;
+        const nameA = a.dataset.name || "";
+        const nameB = b.dataset.name || "";
+        return nameA.localeCompare(nameB, "ko");
+      });
+      cards.forEach(card => list.appendChild(card));
+    };
+    const scheduleResort = () => {
+      if (resortTimer) return;
+      resortTimer = setTimeout(() => {
+        resortTimer = null;
+        resortStudentListDom();
+      }, 200);
+    };
+
     for (const student of students) {
-      const { uid, userData, managementType, progress, liveSeconds, isRunning, startedAtMs } = student;
+      const { uid, userData, managementType, normalizedType, progress, baseSeconds, liveSeconds, isRunning, startedAtMs } = student;
 
       // 관리 유형 뱃지
-      const typeBadge = managementType === "external"
+      const typeBadge = isExternalType(managementType)
         ? '<span class="badge" style="margin-left:6px; background:#f59e0b; color:#fff;">🏠 외부</span>'
         : '<span class="badge" style="margin-left:6px; background:#3b82f6; color:#fff;">🏫 윈터</span>';
 
       const card = document.createElement("div");
       card.className = "student-card";
       card.id = `student-card-${uid}`;
+      card.dataset.type = normalizedType || normalizeType(managementType);
+      card.dataset.progress = String(progress);
+      card.dataset.baseSeconds = String(baseSeconds);
+      card.dataset.startedAtMs = String(startedAtMs || "");
+      card.dataset.running = String(!!isRunning);
+      card.dataset.name = String(userData?.name || "");
       card.innerHTML = `
       <div class="row" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div class="student-info">
@@ -2606,9 +2741,21 @@ async function renderStudentList() {
       adminTimerStates[uid] = { baseSeconds: baseSecs, startedAtMs, running };
       if (displayEl) displayEl.textContent = formatTimer(liveSecs);
       if (statusEl) statusEl.textContent = running ? '🟢' : '⏸️';
+      const cardEl = document.getElementById(`student-card-${uid}`);
+      if (cardEl) {
+        cardEl.dataset.baseSeconds = String(baseSecs);
+        cardEl.dataset.startedAtMs = String(startedAtMs || "");
+        cardEl.dataset.running = String(!!running);
+        if (data.progress !== undefined) {
+          cardEl.dataset.progress = String(Number(data.progress) || 0);
+        }
+      }
+      scheduleResort();
       updateAdminTimerTickState();
     });
     }
+
+    scheduleResort();
 
     const overviewStudentEl = document.getElementById("overviewStudentCount");
     if (overviewStudentEl) overviewStudentEl.textContent = displayedCount;
